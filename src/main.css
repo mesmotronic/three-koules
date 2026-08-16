@@ -1,3 +1,6 @@
+/* SPDX-FileCopyrightText: © 2026 Mesmotronic Limited */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+
 /*
  * Colour tokens are overwritten at startup from the game's own VGA palette
  * (see ui/Theme.ts). The values here are only what shows before that runs.

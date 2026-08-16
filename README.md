@@ -152,6 +152,13 @@ gamepad. Progress, bindings and options persist in localStorage.
 
 ## Licence
 
-Koules is © 1995–1996 Jan Hubicka, released under the GPL; see the upstream
-`COPYING`. This port carries the same licence. Three.js port by
-[Mesmotronic](https://mesmotronic.com).
+GPL-2.0-or-later; the full text is in [COPYING](COPYING).
+
+Koules is © 1995–1996 Jan Hubicka. This port is © 2026 Mesmotronic Limited and
+carries the same licence, as a derivative work must. Every source file has an
+SPDX header naming its copyright holders: files ported from the C name their
+upstream authors alongside Mesmotronic, because the GPL requires those notices
+to stay intact, and because the work deserves the credit. Beyond Hubicka that
+means Lubomir Rintel for the SDL backend, Ludvik Tesar for the joystick
+handling, Sujal M. Patel for the sound code, and Kamil Toman and Thomas Marsh
+for the scripts.

@@ -1,3 +1,8 @@
+// SPDX-FileCopyrightText: © 1994-1995 Sujal M. Patel
+// SPDX-FileCopyrightText: © 1995-1996 Jan Hubicka
+// SPDX-FileCopyrightText: © 2026 Mesmotronic Limited
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 import { Sample } from '../core/Constants.js';
 
 /** The seven samples from `sounds/`, in `S_*` order. */

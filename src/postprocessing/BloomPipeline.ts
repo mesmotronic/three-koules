@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: © 2026 Mesmotronic Limited
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 import { PostProcessing, type Camera, type Renderer, type Scene } from 'three/webgpu';
 import { float, mrt, output, pass, uniform } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';

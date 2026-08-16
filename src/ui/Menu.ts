@@ -1,3 +1,8 @@
+// SPDX-FileCopyrightText: © 1995-1996 Jan Hubicka
+// SPDX-FileCopyrightText: © 1997 Ludvik Tesar
+// SPDX-FileCopyrightText: © 2026 Mesmotronic Limited
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 import { DIFFICULTIES, GameMode, GamePlanMode, MAX_ROCKETS } from '../core/Constants.js';
 import type { SettingsData } from '../core/Settings.js';
 import type { InputManager } from '../controls/InputManager.js';

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: © 1995-1996 Jan Hubicka
+// SPDX-FileCopyrightText: © 2026 Mesmotronic Limited
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 import {
 	Color,
 	MeshBasicNodeMaterial,

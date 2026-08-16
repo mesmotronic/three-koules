@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: © 2026 Mesmotronic Limited
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 import { GLYPH_SIZE, glyphRows } from '../core/Font8x8.js';
 
 /**

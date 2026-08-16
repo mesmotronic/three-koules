@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: © 1995-1996 Jan Hubicka
+// SPDX-FileCopyrightText: © 2026 Mesmotronic Limited
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 import { GameMode, GamePlanMode, ObjectType } from '../core/Constants.js';
 import { CP437 } from '../core/Font8x8.js';
 import type { Game } from '../game/Game.js';
