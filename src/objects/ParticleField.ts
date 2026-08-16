@@ -8,7 +8,7 @@ import {
 	PointsNodeMaterial,
 	Sprite
 } from 'three/webgpu';
-import { instancedBufferAttribute, shapeCircle, uniform } from 'three/tsl';
+import { float, instancedBufferAttribute, positionView, shapeCircle, uniform, viewportSize } from 'three/tsl';
 
 import { GAME_HEIGHT, GAME_WIDTH, MAX_POINT } from '../core/Constants.js';
 import type { ParticleSystem } from '../game/ParticleSystem.js';
@@ -16,6 +16,16 @@ import { setBloom } from '../materials/BodyMaterials.js';
 
 /** Apparent particle diameter, in playfield units. */
 const PARTICLE_SIZE = 2.2;
+
+/**
+ * Largest a spark may be drawn, in logical pixels.
+ *
+ * Perspective sizing is what makes the point pool read as a volume from an
+ * angle, but a thrust plume emitted at the camera in the cockpit view would
+ * otherwise fill the screen with dinner plates. The cap costs nothing at any
+ * normal distance and only bites when a spark is nearly touching the lens.
+ */
+const MAX_PIXELS = 26;
 
 /**
  * The point pool, drawn as instanced sprites.
@@ -45,17 +55,25 @@ export class ParticleField extends Sprite {
 		colors.setUsage( DynamicDrawUsage );
 		sizes.setUsage( DynamicDrawUsage );
 
+		// Half the vertical field of view, as a tangent. Perspective sizing is
+		// done here rather than by `sizeAttenuation`, whose built-in formula
+		// leaves the field of view out and offers nowhere to clamp.
 		const pixelScale = uniform( 1 );
+
+		const distance = positionView.z.negate().max( 1 );
+		const apparent = float( PARTICLE_SIZE )
+			.mul( viewportSize.y.mul( 0.5 ) )
+			.div( distance )
+			.mul( pixelScale )
+			.clamp( 1, MAX_PIXELS );
 
 		const material = new PointsNodeMaterial( {
 			positionNode: instancedBufferAttribute<'vec3'>( positions, 'vec3' ),
 			colorNode: instancedBufferAttribute<'vec3'>( colors, 'vec3' ),
 			// The per-point size is 0 or 1, so this both scales and hides.
-			sizeNode: instancedBufferAttribute<'float'>( sizes, 'float' ).mul( pixelScale ),
+			sizeNode: instancedBufferAttribute<'float'>( sizes, 'float' ).mul( apparent ),
 			opacityNode: shapeCircle(),
 			vertexColors: true,
-			// Sizes are handed over in pixels, computed from the projected
-			// playfield, which keeps sparks crisp at any viewport size.
 			sizeAttenuation: false,
 			transparent: true,
 			blending: AdditiveBlending,
@@ -77,10 +95,14 @@ export class ParticleField extends Sprite {
 
 	}
 
-	/** @param pixelsPerUnit - Logical pixels covered by one playfield unit. */
-	setPixelsPerUnit( pixelsPerUnit: number ): void {
+	/**
+	 * Keeps a spark the same apparent size whatever the camera is doing.
+	 *
+	 * @param fov - Vertical field of view, in degrees.
+	 */
+	setFov( fov: number ): void {
 
-		this.pixelScale.value = Math.max( 1, PARTICLE_SIZE * pixelsPerUnit );
+		this.pixelScale.value = 1 / Math.tan( ( fov * Math.PI ) / 360 );
 
 	}
 
@@ -93,7 +115,8 @@ export class ParticleField extends Sprite {
 
 		particles.writeInstances( alpha, positions, colors, sizes );
 
-		// Playfield space has y pointing down and the origin in a corner.
+		// Playfield space has y pointing down and the origin in a corner; z is
+		// already in world terms and passes straight through.
 		for ( let i = 0; i < MAX_POINT; i ++ ) {
 
 			const i3 = i * 3;

@@ -25,9 +25,21 @@ export class ParticleSystem {
 	readonly px = new Float32Array( MAX_POINT );
 	readonly py = new Float32Array( MAX_POINT );
 
+	/**
+	 * Height above the sector plane.
+	 *
+	 * The simulation is flat and stays flat — z never feeds back into
+	 * gameplay, and the bounds check ignores it. It exists so that an
+	 * explosion is a sphere rather than a disc, which costs nothing looking
+	 * straight down and is the whole difference from any other angle.
+	 */
+	readonly z = new Float32Array( MAX_POINT );
+	readonly pz = new Float32Array( MAX_POINT );
+
 	/** Velocity in playfield units per tick. */
 	readonly vx = new Float32Array( MAX_POINT );
 	readonly vy = new Float32Array( MAX_POINT );
+	readonly vz = new Float32Array( MAX_POINT );
 
 	/** Ticks of life remaining; zero means the slot is free. */
 	readonly time = new Int16Array( MAX_POINT );
@@ -40,15 +52,22 @@ export class ParticleSystem {
 	/** `npoint` — the ring cursor. */
 	private cursor = 0;
 
-	/** `addpoint()`. Velocities are in playfield units per tick. */
-	add( x: number, y: number, vx: number, vy: number, color: number, time: number ): void {
+	/**
+	 * `addpoint()`. Velocities are in playfield units per tick.
+	 *
+	 * @param z - Starting height above the plane.
+	 * @param vz - Vertical velocity; zero keeps the point in the plane.
+	 */
+	add( x: number, y: number, vx: number, vy: number, color: number, time: number, z = 0, vz = 0 ): void {
 
 		const i = this.cursor;
 
 		this.x[ i ] = this.px[ i ] = x;
 		this.y[ i ] = this.py[ i ] = y;
+		this.z[ i ] = this.pz[ i ] = z;
 		this.vx[ i ] = vx;
 		this.vy[ i ] = vy;
+		this.vz[ i ] = vz;
 		this.time[ i ] = time;
 		this.life[ i ] = time;
 		this.color[ i ] = color & 0xff;
@@ -72,7 +91,7 @@ export class ParticleSystem {
 	 */
 	update(): void {
 
-		const { x, y, px, py, vx, vy, time } = this;
+		const { x, y, z, px, py, pz, vx, vy, vz, time } = this;
 
 		for ( let i = 0; i < MAX_POINT; i ++ ) {
 
@@ -82,6 +101,11 @@ export class ParticleSystem {
 
 			px[ i ] = x[ i ];
 			py[ i ] = y[ i ];
+			pz[ i ] = z[ i ];
+
+			// Height is damped rather than bounded: sparks settle back toward
+			// the plane instead of drifting into the camera.
+			z[ i ] = ( z[ i ] + vz[ i ] ) * 0.94;
 
 			const nx = x[ i ] + vx[ i ];
 			const ny = y[ i ] + vy[ i ];
@@ -112,7 +136,7 @@ export class ParticleSystem {
 	 */
 	writeInstances( alpha: number, positions: Float32Array, colors: Float32Array, sizes: Float32Array ): number {
 
-		const { x, y, px, py, time, life, color } = this;
+		const { x, y, z, px, py, pz, time, life, color } = this;
 		let count = 0;
 
 		for ( let i = 0; i < MAX_POINT; i ++ ) {
@@ -130,7 +154,7 @@ export class ParticleSystem {
 
 			positions[ i3 + 0 ] = px[ i ] + ( x[ i ] - px[ i ] ) * alpha;
 			positions[ i3 + 1 ] = py[ i ] + ( y[ i ] - py[ i ] ) * alpha;
-			positions[ i3 + 2 ] = 0;
+			positions[ i3 + 2 ] = pz[ i ] + ( z[ i ] - pz[ i ] ) * alpha;
 
 			// Ease the last fifth of a point's life out rather than letting it
 			// pop. The original simply stopped plotting the pixel.

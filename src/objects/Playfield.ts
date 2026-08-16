@@ -114,7 +114,9 @@ export class Playfield extends Group {
 			new PlaneGeometry( GAME_WIDTH, GAME_HEIGHT ),
 			new MeshBasicNodeMaterial( { map: createBackdropTexture() } )
 		);
-		floor.position.z = - 24;
+		// Deep enough that even the boss's 32 unit radius clears it when the
+		// camera is low, since every object is centred on the plane.
+		floor.position.z = - 40;
 		this.add( floor );
 
 		// --- boundary -------------------------------------------------------

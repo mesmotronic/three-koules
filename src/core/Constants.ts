@@ -112,6 +112,28 @@ export const enum GamePlanMode {
 	COOPERATIVE = 1
 }
 
+/** In-game points of view. Only {@link ViewMode.TOP} is square to the screen. */
+export const enum ViewMode {
+	/** Straight down the axis, as the original always was. */
+	TOP = 0,
+	/** Tipped back about x, so the near edge of the sector splays open. */
+	ANGLED = 1,
+	/** Behind and above the ship, turning with it. */
+	CHASE = 2,
+	/** From the ship itself. */
+	COCKPIT = 3
+}
+
+/** Modes that track a ship, and so only make sense with one player. */
+export const FOLLOWING_VIEWS: readonly ViewMode[] = [ ViewMode.CHASE, ViewMode.COCKPIT ];
+
+export const VIEW_LABELS: Readonly<Record<ViewMode, string>> = {
+	[ ViewMode.TOP ]: 'TOP',
+	[ ViewMode.ANGLED ]: 'ANGLED',
+	[ ViewMode.CHASE ]: 'CHASE',
+	[ ViewMode.COCKPIT ]: 'PILOT'
+};
+
 export const enum GameMode {
 	MENU = 1,
 	KEYS = 2,

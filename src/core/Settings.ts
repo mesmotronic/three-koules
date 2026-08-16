@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: © 2026 Mesmotronic Limited
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-import { GamePlanMode, MAX_ROCKETS } from './Constants.js';
+import { GamePlanMode, MAX_ROCKETS, ViewMode } from './Constants.js';
 
 /**
  * `rcfiles.c` in localStorage.
@@ -27,6 +27,8 @@ export interface SettingsData {
 	gameplan: GamePlanMode;
 	sound: boolean;
 	bloom: boolean;
+	/** Last in-game point of view; see {@link ViewMode}. */
+	view: ViewMode;
 	cameraMotion: boolean;
 	lastLevel: number;
 	maxLevel: number;
@@ -56,6 +58,7 @@ export function createDefaultSettings(): SettingsData {
 		gameplan: GamePlanMode.COOPERATIVE,
 		sound: true,
 		bloom: true,
+		view: ViewMode.TOP,
 		cameraMotion: true,
 		lastLevel: 0,
 		maxLevel: 0

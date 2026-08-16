@@ -44,6 +44,14 @@ export interface PlayerControl {
 	my: number;
 	/** Direction bitmask, or button state, depending on {@link type}. */
 	mask: number;
+	/**
+	 * Rotation to add to the resulting heading.
+	 *
+	 * Zero reproduces the original exactly, where a direction meant a direction
+	 * in the sector. The camera-following views set it so that the player's
+	 * input is read relative to where the camera is pointing.
+	 */
+	heading: number;
 }
 
 /** A narrative interlude the app must play before the simulation resumes. */
@@ -69,7 +77,7 @@ export class Game {
 
 	/** `controls[]` — filled in by the input layer before each tick. */
 	readonly controls: PlayerControl[] = Array.from( { length: MAX_ROCKETS }, () => ( {
-		type: ControlType.KEYBOARD, jx: 0, jy: 0, mx: 0, my: 0, mask: 0
+		type: ControlType.KEYBOARD, jx: 0, jy: 0, mx: 0, my: 0, mask: 0, heading: 0
 	} ) );
 
 	/** `rotation[]` — per player, asteroids steering instead of eight way. */
@@ -259,6 +267,10 @@ export class Game {
 	 *
 	 * The angular step is `2 / radius^2`, so the spark count grows with the
 	 * object's area: a koule scatters ~200 points, the boss ~3200.
+	 *
+	 * The ring is given an elevation as well as a bearing, turning the
+	 * original's disc into a sphere. The in-plane velocity is untouched, so it
+	 * looks exactly as it always did from directly above.
 	 */
 	explosion( x: number, y: number, type: ObjectType, letter: Letter, index: number ): void {
 
@@ -272,13 +284,16 @@ export class Game {
 
 			// The original's speeds were 24.8 fixed point per tick.
 			const speed = ( randMod( 3096 ) + 10 ) / 256;
+			const elevation = ( randMod( 2000 ) / 1000 - 1 ) * speed * 0.7;
 
 			this.particles.add(
 				x, y,
 				Math.sin( a ) * speed,
 				Math.cos( a ) * speed,
 				base + randMod( 16 ),
-				randMod( 100 ) + 10
+				randMod( 100 ) + 10,
+				0,
+				elevation
 			);
 
 		}
@@ -320,7 +335,19 @@ export class Game {
 			const x2 = x1 + ( x - midX ) * shrink;
 			const y2 = y1 + ( y - midY ) * shrink;
 
-			this.particles.add( x, y, ( x2 - x ) / time, ( y2 - y ) / time, base + randMod( 16 ), time );
+			// Seeded off the plane and given exactly the velocity to arrive on
+			// it, so the cloud collapses as a shell rather than a ring.
+			const z = ( randMod( 2000 ) / 1000 - 1 ) * radius * 3;
+
+			this.particles.add(
+				x, y,
+				( x2 - x ) / time,
+				( y2 - y ) / time,
+				base + randMod( 16 ),
+				time,
+				z,
+				- z / time
+			);
 
 		}
 
@@ -611,7 +638,9 @@ export class Game {
 				( ( o.fx - howmuch * Math.sin( o.rotation + p ) * o.accel * 10 ) * randMod( 512 ) ) / 256,
 				( ( o.fy - howmuch * Math.cos( o.rotation + p ) * o.accel * 10 ) * randMod( 512 ) ) / 256,
 				rocketRamp( randMod( 16 ) ),
-				10
+				10,
+				0,
+				( randMod( 200 ) / 1000 - 0.1 ) * o.accel
 			);
 
 		}
@@ -634,7 +663,7 @@ export class Game {
 
 				case ControlType.JOYSTICK1: {
 
-					o.rotation = Game.headingFrom( c.jx, c.jy );
+					o.rotation = Game.headingFrom( c.jx, c.jy ) + c.heading;
 
 					// Deflection sets the throttle; the fire button pins it open.
 					let a = Math.hypot( c.jx * o.joymulx, c.jy * o.joymuly );
@@ -651,7 +680,7 @@ export class Game {
 					const dy = o.y - c.my;
 					if ( dx === 0 ) dx = 0.001;
 
-					o.rotation = Game.headingFrom( dx, dy );
+					o.rotation = Game.headingFrom( dx, dy ) + c.heading;
 					if ( c.mask ) this.accel( i, 1 );
 
 					break;
@@ -673,7 +702,7 @@ export class Game {
 
 					if ( c.mask >= 1 && c.mask <= 8 ) {
 
-						o.rotation = RAD( heading );
+						o.rotation = RAD( heading ) + c.heading;
 						this.accel( i, 1 );
 
 					}

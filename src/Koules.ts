@@ -19,9 +19,11 @@ import {
 	GameMode,
 	MAX_ROCKETS,
 	ObjectType,
-	TICK_MS
+	TICK_MS,
+	ViewMode
 } from './core/Constants.js';
 import { loadSettings, saveSettings, type SettingsData } from './core/Settings.js';
+import { CameraDirector } from './controls/CameraDirector.js';
 import { InputManager } from './controls/InputManager.js';
 import { Game } from './game/Game.js';
 import { Crawl } from './objects/Crawl.js';
@@ -36,6 +38,7 @@ import { createBloomPipeline, type BloomPipeline } from './postprocessing/BloomP
 import { HelpLabels } from './ui/HelpLabels.js';
 import { Hud } from './ui/Hud.js';
 import { Menu } from './ui/Menu.js';
+import { ViewSelector } from './ui/ViewSelector.js';
 import { briefings, introCrawl, outro2Crawl } from './misc/TextData.js';
 import { bitmapLineHeight, paintStaticText, setBitmapText, updateBitmapScale } from './ui/BitmapText.js';
 import { applyTheme } from './ui/Theme.js';
@@ -83,6 +86,8 @@ export class Koules {
 	private readonly menu: Menu;
 	private readonly hud: Hud;
 	private readonly labels: HelpLabels;
+	private readonly viewSelector: ViewSelector;
+	private readonly director: CameraDirector;
 
 	private readonly playfieldEl: HTMLElement;
 	private readonly bannerEl: HTMLElement;
@@ -160,8 +165,17 @@ export class Koules {
 		applyTheme();
 		paintStaticText();
 
+		this.director = new CameraDirector( this.camera );
+
 		this.hud = new Hud( required( 'hud-level' ), required( 'hud-players' ) );
 		this.labels = new HelpLabels( required( 'labels' ) );
+		this.viewSelector = new ViewSelector( required( 'views' ), mode => {
+
+			this.settings.view = mode;
+			this.director.setMode( mode );
+			this.persist();
+
+		} );
 
 		this.menu = new Menu( required( 'menu' ), required( 'menu-items' ), this.game, this.settings, this.input, {
 			onStart: () => this.startGame(),
@@ -177,6 +191,7 @@ export class Koules {
 		this.game.onWallImpact = () => this.playfield.pulse();
 
 		this.applySettings();
+		this.viewSelector.choose( this.settings.view );
 		this.menu.syncGame();
 
 		window.addEventListener( 'resize', this.onResize );
@@ -251,6 +266,9 @@ export class Koules {
 		this.sound.enabled = settings.sound;
 		this.bloom?.setEnabled( settings.bloom );
 
+		this.director.driftEnabled = settings.cameraMotion;
+		this.viewSelector?.setSoloGame( settings.nrockets === 1 );
+
 	}
 
 	// ---------------------------------------------------------- state moves
@@ -264,6 +282,8 @@ export class Koules {
 
 		game.sound = this.settings.sound;
 		game.gamemode = GameMode.GAME;
+		this.viewSelector.setSoloGame( game.nrockets === 1 );
+		this.director.snap();
 		game.plan.init();
 		game.plan.initObjects();
 
@@ -394,6 +414,19 @@ export class Koules {
 
 		// `IsPressedH()` toggled the annotations.
 		if ( input.wasPressed( 'KeyH' ) ) game.helpmode = ! game.helpmode;
+
+		// Points of view: 1 to 4 pick one, V steps through them.
+		if ( game.gamemode === GameMode.GAME && this.phase === 'live' ) {
+
+			for ( const [ index, code ] of [ 'Digit1', 'Digit2', 'Digit3', 'Digit4' ].entries() ) {
+
+				if ( input.wasPressed( code ) ) this.viewSelector.choose( index as ViewMode );
+
+			}
+
+			if ( input.wasPressed( 'KeyV' ) ) this.viewSelector.cycle();
+
+		}
 
 		// `IsPressedP()` froze everything until the next keypress.
 		if ( input.wasPressed( 'KeyP' ) && game.gamemode === GameMode.GAME && this.phase === 'live' ) {
@@ -526,6 +559,10 @@ export class Koules {
 
 		if ( game.gamemode !== GameMode.GAME ) return;
 
+		// In the following views the camera turns with the ship, so "up" has
+		// to mean "away from the camera" or the controls stop making sense.
+		const offset = this.director.headingOffset;
+
 		for ( let i = 0; i < game.nrockets; i ++ ) {
 
 			const control = game.controls[ i ];
@@ -545,6 +582,7 @@ export class Koules {
 				control.jx = - input.stickX;
 				control.jy = - input.stickY;
 				control.mask = 0;
+				control.heading = offset;
 
 				// Matches the original's JOYMUL2, so a full push is full thrust.
 				object.joymulx = 1.5;
@@ -563,6 +601,7 @@ export class Koules {
 				control.mx = input.pointerX;
 				control.my = input.pointerY;
 				control.mask = input.pointerDown ? 1 : 0;
+				control.heading = offset;
 				continue;
 
 			}
@@ -587,6 +626,7 @@ export class Koules {
 				control.jx = - anyStick.x;
 				control.jy = - anyStick.y;
 				control.mask = anyButton > 0 ? 1 : 0;
+				control.heading = offset;
 
 				// Zero multiplier is the original's "accelerate on the fire
 				// button"; anything above is "accelerate by deflection".
@@ -615,8 +655,11 @@ export class Koules {
 				if ( left ) mask |= 2;
 				if ( up ) mask |= 4;
 
+				// Rotation steering is already relative to the ship, so it needs
+				// no help from the camera.
 				control.type = ControlType.RKEYBOARD;
 				control.mask = mask;
+				control.heading = 0;
 
 			} else {
 
@@ -634,6 +677,7 @@ export class Koules {
 
 				control.type = ControlType.KEYBOARD;
 				control.mask = mask;
+				control.heading = offset;
 
 			}
 
@@ -646,24 +690,23 @@ export class Koules {
 	private baseDistance = 1000;
 
 	/**
-	 * A slow drift and breath, so the static top-down view has some life.
+	 * Hands the camera to the director.
 	 *
-	 * Held perfectly still during a crawl: the scroller reproduces the
-	 * original's own projection, and moving the camera would fight it.
+	 * The overhead view is forced while a crawl or the menu is up: the scroller
+	 * reproduces the original's own projection and any camera move would fight
+	 * it, and the menu's overlay is laid out against the projected square.
 	 */
 	private updateCamera( delta: number ): void {
 
-		void delta;
+		const overhead = this.phase !== 'live' || this.game.gamemode !== GameMode.GAME;
 
-		const still = this.phase === 'crawl' || ! this.settings.cameraMotion;
-		const t = this.elapsed;
+		this.director.driftEnabled = this.settings.cameraMotion && this.phase !== 'crawl';
+		this.director.setMode( overhead ? ViewMode.TOP : this.viewSelector.mode );
 
-		const swayX = still ? 0 : Math.sin( t * 0.13 ) * 9 + Math.sin( t * 0.31 ) * 2.5;
-		const swayY = still ? 0 : Math.cos( t * 0.17 ) * 7;
-		const breath = still ? 1 : 1 + Math.sin( t * 0.09 ) * 0.014;
+		const player = this.game.nrockets === 1 ? this.game.objects[ 0 ] : null;
+		this.director.update( delta, this.elapsed, player );
 
-		this.camera.position.set( swayX, - this.lift + swayY, this.baseDistance * breath );
-		this.camera.lookAt( swayX * 0.35, - this.lift + swayY * 0.35, 0 );
+		this.particles.setFov( this.camera.fov );
 
 	}
 
@@ -697,6 +740,7 @@ export class Koules {
 
 			paintStaticText();
 			this.menu.rescale();
+			this.viewSelector?.rescale();
 
 		}
 
@@ -724,6 +768,9 @@ export class Koules {
 		// below the axis renders the sector above centre, hence the negation.
 		this.lift = ( height / 2 - ( this.rectTop + size / 2 ) ) / pixelsPerUnit;
 
+		this.director.distance = this.baseDistance;
+		this.director.lift = this.lift;
+
 		// The crawl covers the whole window rather than the inset sector.
 		const halfHeight = this.baseDistance * tan;
 		this.crawl.setViewport( halfHeight * aspect, halfHeight );
@@ -733,7 +780,7 @@ export class Koules {
 		this.playfieldEl.style.transform = `translate(0px, ${ this.rectTop - ( height - size ) / 2 }px)`;
 
 		this.input.setPlayfieldRect( this.rectLeft, this.rectTop, size );
-		this.particles.setPixelsPerUnit( pixelsPerUnit );
+		this.particles.setFov( this.camera.fov );
 
 	};
 
@@ -753,9 +800,12 @@ export class Koules {
 		this.hudEl.style.visibility = inCrawl ? 'hidden' : '';
 		this.starfield.setBrightness( inCrawl ? 1 : 0.45 );
 
+		// From inside the ship you should not be able to see it.
+		const hidden = this.director.mode === ViewMode.COCKPIT ? 0 : - 1;
+
 		for ( let i = 0; i < this.views.length; i ++ ) {
 
-			if ( inCrawl || i >= game.nobjects ) {
+			if ( inCrawl || i >= game.nobjects || i === hidden ) {
 
 				this.views[ i ].visible = false;
 				continue;
@@ -772,6 +822,7 @@ export class Koules {
 		this.particles.update( game.particles, this.paused ? 1 : alpha );
 
 		this.hud.update( game );
+		this.viewSelector.visible = game.gamemode === GameMode.GAME && this.phase === 'live';
 		this.labels.update( game, this.project, this.rectSize );
 		this.updateStick();
 

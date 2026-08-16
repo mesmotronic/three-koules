@@ -138,6 +138,49 @@ body {
 	opacity: 0.4;
 }
 
+/* --------------------------------------------------------- view selector */
+
+#views {
+	position: absolute;
+	right: 0;
+	top: calc(100% + 10px);
+	display: none;
+	gap: calc(2px * var(--bmp-scale));
+	pointer-events: auto;
+}
+
+#views.visible {
+	display: flex;
+}
+
+#views .view {
+	appearance: none;
+	background: transparent;
+	border: 1px solid transparent;
+	padding: calc(1px * var(--bmp-scale)) calc(2px * var(--bmp-scale));
+	cursor: pointer;
+	opacity: 0.72;
+	transition: opacity 0.15s ease, border-color 0.15s ease;
+}
+
+#views .view:hover,
+#views .view:focus-visible {
+	opacity: 1;
+	outline: none;
+}
+
+/* The menu's selection rectangle, reused so a new control looks native. */
+#views .view.selected {
+	opacity: 1;
+	border-color: var(--koules-select);
+	box-shadow: 1px 1px 0 var(--koules-select-shadow);
+}
+
+#views .view.unavailable {
+	opacity: 0.2;
+	cursor: default;
+}
+
 /* ------------------------------------------------------------------- menu */
 
 #menu {

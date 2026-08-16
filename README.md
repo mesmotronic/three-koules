@@ -114,6 +114,31 @@ stick deflection. A pad unplugged mid-game falls back to that player's keyboard
 bindings instead of leaving them inert, and the `CONTROL` screen says
 `NOT CONNECTED` for a slot whose pad has gone.
 
+**Four points of view.** The original only ever looked straight down, because
+it was drawing into a framebuffer. Since this one has a real camera, it can
+move: `TOP` is the original view, `ANGLED` tips the sector back about its x axis
+so the near edge splays open, and `CHASE` and `PILOT` follow the ship from
+behind and from inside it. Pick one from the switch opposite the scores, with
+`1`–`4`, or step through with `V`. The camera flies between them, interpolating
+position and orientation as a quaternion — the top-down and following views
+disagree about which axis is up, and slerp is the only thing that crosses that
+cleanly.
+
+The two following views turn with the ship, so they also turn the controls:
+pressing up means "away from the camera" rather than "towards the top of the
+sector". That is the single concession the modes need — the simulation itself
+never learns about any of it, and the two fixed views leave the input exactly
+as the original had it. Following a ship only makes sense with one of them, so
+`CHASE` and `PILOT` are offered in solo games until there is something sensible
+to do about a split screen.
+
+**Particles have depth.** They did not before: every point sat at z = 0, which
+is invisible looking straight down and looks like wet paper from anywhere else.
+Explosions now burst as spheres and spawn clouds collapse as shells, with the
+in-plane velocities left exactly as they were, so the top-down view is
+unchanged. Sparks are sized by distance with a ceiling on how large one may be
+drawn, or a thrust plume emitted at the camera would fill the cockpit view.
+
 **Touch play is new.** Where the finger lands becomes the centre of a virtual
 stick and displacement from it steers, until the touch ends. That needs no
 special case in the simulation: it feeds the same path as Ludvik Tesar's 1997
@@ -146,6 +171,7 @@ arithmetic was plainly reaching for is used instead.
 | Help labels | `H` |
 | Menu | `Esc` |
 | Touch | Anywhere — that point becomes the stick's centre |
+| View | `1`–`4`, or `V` to cycle |
 
 Per player, `CONTROL` cycles eight-way keyboard, rotation keyboard, mouse and
 gamepad. Progress, bindings and options persist in localStorage.
