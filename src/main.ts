@@ -5,27 +5,25 @@ import './main.css';
 import { Koules } from './Koules.js';
 
 const container = document.getElementById( 'container' );
-const gate = document.getElementById( 'gate' );
-const button = document.getElementById( 'gate-button' );
+const boot = document.getElementById( 'boot' );
+const message = document.getElementById( 'boot-message' );
 
-if ( container === null || gate === null || button === null ) {
+if ( container === null || boot === null || message === null ) {
 
 	throw new Error( 'three-koules: page markup is missing' );
 
 }
 
 /** Shows a readable message instead of a blank canvas when WebGPU is absent. */
-function fail( message: string ): void {
+function fail( text: string ): void {
 
-	gate!.classList.add( 'error' );
-	gate!.classList.remove( 'hidden' );
-
-	const paragraph = gate!.querySelector( 'p' );
-	if ( paragraph !== null ) paragraph.textContent = message;
+	boot!.classList.add( 'error' );
+	boot!.classList.remove( 'hidden' );
+	message!.textContent = text;
 
 }
 
-async function boot(): Promise<void> {
+async function start(): Promise<void> {
 
 	if ( navigator.gpu === undefined ) {
 
@@ -51,19 +49,9 @@ async function boot(): Promise<void> {
 
 	}
 
-	// The gate belongs to the page, not to the game: quitting brings it back,
-	// so the button has to stay armed rather than firing once.
-	koules.onQuit = () => gate!.classList.remove( 'hidden' );
-
-	button!.addEventListener( 'click', () => {
-
-		gate!.classList.add( 'hidden' );
-		koules.start();
-
-	} );
-
-	button!.removeAttribute( 'disabled' );
+	boot!.classList.add( 'hidden' );
+	koules.start();
 
 }
 
-void boot();
+void start();

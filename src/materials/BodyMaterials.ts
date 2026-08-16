@@ -104,10 +104,42 @@ export function appearanceColor( appearance: Appearance, target = new Color() ):
  * Selective bloom is done with a `bloomIntensity` channel on the scene's MRT,
  * exactly as `webgpu_postprocessing_bloom_selective` does. Materials without a
  * tag inherit the pass default of zero and stay sharp.
+ *
+ * The tag is remembered so it can be lifted again: a material carrying an MRT
+ * node cannot be drawn straight to the canvas, because the output struct it
+ * compiles has no colour member for a target that has only one attachment.
+ * See {@link setBloomTagging}.
  */
 export function setBloom( material: Material, intensity: number ): void {
 
-	( material as MeshStandardNodeMaterial ).mrtNode = mrt( { bloomIntensity: uniform( intensity ) } );
+	_tagged.set( material, mrt( { bloomIntensity: uniform( intensity ) } ) );
+	if ( _tagging ) ( material as MeshStandardNodeMaterial ).mrtNode = _tagged.get( material )!;
+
+}
+
+/** Every material `setBloom` has touched, with the node it was given. */
+const _tagged = new Map<Material, ReturnType<typeof mrt>>();
+let _tagging = true;
+
+/**
+ * Turns the bloom tags on or off across every material at once.
+ *
+ * Selective bloom needs a second render target, which only the post-processing
+ * pass provides. Split screen draws its viewports straight to the canvas, so
+ * the tags come off for the duration — the picture loses its glow rather than
+ * failing to compile. Called on a change of view, never per frame.
+ */
+export function setBloomTagging( enabled: boolean ): void {
+
+	if ( enabled === _tagging ) return;
+	_tagging = enabled;
+
+	for ( const [ material, node ] of _tagged ) {
+
+		( material as MeshStandardNodeMaterial ).mrtNode = enabled ? node : null;
+		material.needsUpdate = true;
+
+	}
 
 }
 

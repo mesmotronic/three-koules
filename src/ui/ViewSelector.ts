@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: © 2026 Mesmotronic Limited
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-import { FOLLOWING_VIEWS, VIEW_LABELS, ViewMode } from '../core/Constants.js';
+import { VIEW_LABELS, ViewMode } from '../core/Constants.js';
 import { setBitmapText } from './BitmapText.js';
 
 const MODES: readonly ViewMode[] = [ ViewMode.TOP, ViewMode.ANGLED, ViewMode.CHASE, ViewMode.COCKPIT ];
@@ -13,12 +13,14 @@ const MODES: readonly ViewMode[] = [ ViewMode.TOP, ViewMode.ANGLED, ViewMode.CHA
  * game's 8x8 font, and the menu's red selection rectangle around the current
  * choice — so a control the original never had still looks like it belongs.
  * Number keys 1 to 4 pick a view directly and V cycles.
+ *
+ * Every view is offered whatever the player count: the following ones tile a
+ * viewport per ship rather than picking one to favour.
  */
 export class ViewSelector {
 
 	private readonly buttons: HTMLElement[] = [];
 	private current: ViewMode = ViewMode.TOP;
-	private available = true;
 
 	constructor(
 		private readonly root: HTMLElement,
@@ -64,39 +66,8 @@ export class ViewSelector {
 
 	}
 
-	/**
-	 * Marks the following views usable or not.
-	 *
-	 * They track one ship, so they are offered only in a solo game until
-	 * there is something sensible to do about a split screen.
-	 */
-	setSoloGame( solo: boolean ): void {
-
-		this.available = solo;
-
-		if ( ! solo && FOLLOWING_VIEWS.includes( this.current ) ) {
-
-			// Forced, not chosen: a two-player session must not overwrite the
-			// view the player picked for solo play.
-			this.current = ViewMode.ANGLED;
-
-		}
-
-		this.refresh();
-
-	}
-
-	/** True if this mode can be chosen right now. */
-	private allows( mode: ViewMode ): boolean {
-
-		return this.available || ! FOLLOWING_VIEWS.includes( mode );
-
-	}
-
 	/** Records a deliberate choice, and tells the app to remember it. */
 	choose( mode: ViewMode ): void {
-
-		if ( ! this.allows( mode ) ) return;
 
 		this.current = mode;
 		this.refresh();
@@ -104,15 +75,10 @@ export class ViewSelector {
 
 	}
 
-	/** Steps to the next usable view, for the V key. */
+	/** Steps to the next view, for the V key. */
 	cycle(): void {
 
-		for ( let step = 1; step <= MODES.length; step ++ ) {
-
-			const next = MODES[ ( MODES.indexOf( this.current ) + step ) % MODES.length ];
-			if ( this.allows( next ) ) { this.choose( next ); return; }
-
-		}
+		this.choose( MODES[ ( MODES.indexOf( this.current ) + 1 ) % MODES.length ] );
 
 	}
 
@@ -132,9 +98,7 @@ export class ViewSelector {
 
 		for ( const [ index, button ] of this.buttons.entries() ) {
 
-			const mode = MODES[ index ];
-			button.classList.toggle( 'selected', mode === this.current );
-			button.classList.toggle( 'unavailable', ! this.allows( mode ) );
+			button.classList.toggle( 'selected', MODES[ index ] === this.current );
 
 		}
 

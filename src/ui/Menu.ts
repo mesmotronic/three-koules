@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import { DIFFICULTIES, GamePlanMode, MAX_ROCKETS } from '../core/Constants.js';
+import { highScores } from '../core/HighScores.js';
 import type { SettingsData } from '../core/Settings.js';
 import type { InputManager } from '../controls/InputManager.js';
 import type { Game } from '../game/Game.js';
@@ -22,8 +23,14 @@ interface MenuItem {
 	};
 }
 
-/** Which screen the menu is showing; `nmain_menu` and friends in `menu.c`. */
-type Screen = 'main' | 'control' | 'mode' | 'difficulty';
+/**
+ * Which screen the menu is showing; `nmain_menu` and friends in `menu.c`.
+ *
+ * `pause` and `scores` are new. They are built from the same rows, selector
+ * and key handling as the rest, so a screen the original never had still
+ * behaves exactly like one it did.
+ */
+type Screen = 'main' | 'control' | 'mode' | 'difficulty' | 'pause' | 'scores';
 
 /** The control schemes a player can cycle through. */
 type Scheme =
@@ -40,6 +47,10 @@ export interface MenuHooks {
 	onQuit(): void;
 	onPersist(): void;
 	onSettingsChanged(): void;
+	/** Leave the pause screen and let the game run on. */
+	onResume(): void;
+	/** Give up the current run and return to the main menu. */
+	onAbandon(): void;
 }
 
 /**
@@ -101,6 +112,16 @@ export class Menu {
 
 	}
 
+	/** Opens the pause screen over the running sector. */
+	showPause(): void {
+
+		this.screen = 'pause';
+		this.rebinding = null;
+		this.input.cancelCapture();
+		this.build();
+
+	}
+
 	/** Returns to the top level, as escape did. */
 	toMain(): void {
 
@@ -123,6 +144,8 @@ export class Menu {
 			case 'control': this.items = this.controlItems(); break;
 			case 'mode': this.items = this.modeItems(); break;
 			case 'difficulty': this.items = this.difficultyItems(); break;
+			case 'pause': this.items = this.pauseItems(); break;
+			case 'scores': this.items = this.scoreItems(); break;
 
 		}
 
@@ -131,6 +154,12 @@ export class Menu {
 			this.selected = this.screen === 'mode' ? 1 : ( this.screen === 'difficulty' ? 2 : 0 );
 
 		}
+
+		// The score table is mostly headings and figures, so the selection has
+		// to find the first row that actually does something.
+		if ( ! this.isSelectable( this.selected ) ) this.selected = this.nextSelectable( this.selected, 1 );
+
+		this.root.classList.toggle( 'paused', this.screen === 'pause' );
 
 		this.rendered = [];
 		this.render();
@@ -161,6 +190,7 @@ export class Menu {
 					max: () => game.plan.maxLevel
 				}
 			},
+			{ label: () => 'HIGH SCORES', activate: () => { this.screen = 'scores'; this.build(); } },
 			{ label: () => 'CONTROL', activate: () => { this.screen = 'control'; this.build(); } },
 			{ label: () => 'GAME MODE', activate: () => { this.screen = 'mode'; this.build(); } },
 			{ label: () => 'DIFFICULTY', activate: () => { this.screen = 'difficulty'; this.build(); } },
@@ -178,6 +208,67 @@ export class Menu {
 			},
 			{ label: () => 'QUIT', activate: () => this.hooks.onQuit() }
 		];
+
+	}
+
+	/** The pause screen, shown over the running sector. */
+	private pauseItems(): MenuItem[] {
+
+		const { settings } = this;
+
+		return [
+			{ label: () => 'RESUME', activate: () => this.hooks.onResume() },
+			{
+				label: () => settings.sound ? 'SOUND ON' : 'SOUND OFF',
+				activate: () => { settings.sound = ! settings.sound; this.changed(); }
+			},
+			{
+				label: () => settings.bloom ? 'BLOOM ON' : 'BLOOM OFF',
+				activate: () => { settings.bloom = ! settings.bloom; this.changed(); }
+			},
+			{
+				label: () => settings.cameraMotion ? 'CAMERA MOTION ON' : 'CAMERA MOTION OFF',
+				activate: () => { settings.cameraMotion = ! settings.cameraMotion; this.changed(); }
+			},
+			{ label: () => 'ABANDON GAME', activate: () => this.hooks.onAbandon() }
+		];
+
+	}
+
+	/** The score table for whichever plan is selected. */
+	private scoreItems(): MenuItem[] {
+
+		const table = highScores( this.settings.gameplan );
+		const heading = this.settings.gameplan === GamePlanMode.DEATHMATCH ? 'DEATH MATCH' : 'COOPERATIVE';
+
+		const items: MenuItem[] = [
+			{ label: () => heading },
+			{ label: () => ' ' }
+		];
+
+		if ( table.length === 0 ) {
+
+			items.push( { label: () => 'NO SCORES YET' } );
+
+		} else {
+
+			for ( const [ index, entry ] of table.entries() ) {
+
+				// Fixed columns, so the table lines up in a monospaced font.
+				const rank = String( index + 1 ).padStart( 2, ' ' );
+				const score = String( entry.score ).padStart( 7, ' ' );
+				const sector = String( entry.sector ).padStart( 3, ' ' );
+
+				items.push( { label: () => `${ rank }.${ score }   SECTOR ${ sector }` } );
+
+			}
+
+		}
+
+		items.push( { label: () => ' ' } );
+		items.push( { label: () => 'BACK', activate: () => this.toMain() } );
+
+		return items;
 
 	}
 
@@ -415,26 +506,16 @@ export class Menu {
 
 		if ( input.wasPressed( 'Escape' ) ) {
 
-			if ( this.screen === 'main' ) this.hooks.onQuit();
+			if ( this.screen === 'pause' ) this.hooks.onResume();
+			else if ( this.screen === 'main' ) this.hooks.onQuit();
 			else { this.hooks.onPersist(); this.toMain(); }
 
 			return;
 
 		}
 
-		if ( input.wasPressed( 'ArrowUp' ) || input.wasPressed( 'KeyW' ) ) {
-
-			this.selected = ( this.selected + this.items.length - 1 ) % this.items.length;
-			this.render();
-
-		}
-
-		if ( input.wasPressed( 'ArrowDown' ) || input.wasPressed( 'KeyS' ) ) {
-
-			this.selected = ( this.selected + 1 ) % this.items.length;
-			this.render();
-
-		}
+		if ( input.wasPressed( 'ArrowUp' ) || input.wasPressed( 'KeyW' ) ) this.moveSelection( - 1 );
+		if ( input.wasPressed( 'ArrowDown' ) || input.wasPressed( 'KeyS' ) ) this.moveSelection( 1 );
 
 		if ( input.wasPressed( 'Enter' ) || input.wasPressed( 'Space' ) || input.wasPressed( 'NumpadEnter' ) ) {
 
@@ -444,6 +525,43 @@ export class Menu {
 		}
 
 		this.updateSpinner( delta );
+
+	}
+
+	/**
+	 * Moves the selection, skipping rows that do nothing.
+	 *
+	 * The score table is built from the same rows as everything else, and most
+	 * of its lines are just text; landing on one would be a dead end.
+	 */
+	private moveSelection( direction: number ): void {
+
+		this.selected = this.nextSelectable( this.selected, direction );
+		this.render();
+
+	}
+
+	/** True if a row responds to being chosen. */
+	private isSelectable( index: number ): boolean {
+
+		const item = this.items[ index ];
+		return item !== undefined && ( item.activate !== undefined || item.spinner !== undefined );
+
+	}
+
+	/** The next row in that direction that responds, wrapping round. */
+	private nextSelectable( from: number, direction: number ): number {
+
+		const count = this.items.length;
+
+		for ( let i = 1; i <= count; i ++ ) {
+
+			const next = ( from + direction * i + count * i ) % count;
+			if ( this.isSelectable( next ) ) return next;
+
+		}
+
+		return from;
 
 	}
 

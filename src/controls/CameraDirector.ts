@@ -1,300 +1,197 @@
 // SPDX-FileCopyrightText: © 2026 Mesmotronic Limited
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-import { Camera, MathUtils, PerspectiveCamera, Quaternion, Vector3 } from 'three/webgpu';
-
-import { GAME_HEIGHT, RAD, ViewMode, toWorldX, toWorldY } from '../core/Constants.js';
+import { FOLLOWING_VIEWS, MAX_ROCKETS, ViewMode } from '../core/Constants.js';
 import type { GameObject } from '../game/GameObject.js';
+import { CameraView, POSES, TOP_FOV, type Framing } from './CameraView.js';
 
-/** Seconds a change of view takes to fly. */
-const TRANSITION = 1.15;
-
-/** How quickly a following camera catches up, per second. */
-const FOLLOW_RATE = 6;
-
-/** How quickly the followed heading catches up. Slower, or it whips. */
-const HEADING_RATE = 2.6;
+export { POSES, TOP_FOV };
 
 /**
- * Scratch used to turn a look-at into a quaternion.
- *
- * It has to be a Camera rather than a plain Object3D: `lookAt` aims +Z at the
- * target for ordinary objects and -Z for cameras, so anything else ends up
- * facing squarely away from the scene.
- */
-const _dummy = new Camera();
-const _position = new Vector3();
-const _target = new Vector3();
-const _quaternion = new Quaternion();
-
-/** Where a mode puts the camera, and how it is framed. */
-interface Pose {
-	fov: number;
-	/** True if the mode turns with the player, so controls must turn too. */
-	rotating: boolean;
-}
-
-/**
- * The overhead field of view.
- *
- * The layout sizes the sector against this, and the director sets the camera
- * from it, so the two have to be the same number rather than agree by luck.
- */
-export const TOP_FOV = 35;
-
-export const POSES: Readonly<Record<ViewMode, Pose>> = {
-	[ ViewMode.TOP ]: { fov: TOP_FOV, rotating: false },
-	[ ViewMode.ANGLED ]: { fov: 42, rotating: false },
-	[ ViewMode.CHASE ]: { fov: 62, rotating: true },
-	[ ViewMode.COCKPIT ]: { fov: 78, rotating: true }
-};
-
-/**
- * Places the camera, and flies it between the game's points of view.
+ * Places the cameras, and flies them between the game's points of view.
  *
  * The simulation is resolutely two dimensional — it was written for a
  * framebuffer — so none of this touches gameplay. What it does change is which
  * way is up: in the two following modes the camera turns with the ship, and a
- * player pressing "up" means "away from me" rather than "towards the top of the
- * sector". {@link headingOffset} carries that rotation back to the input code so
- * the controls stay honest, which is the only concession the modes need.
+ * player pressing "up" means "away from me" rather than "towards the top of
+ * the sector". {@link headingOffset} carries that rotation back to the input
+ * code so the controls stay honest.
  *
- * Transitions interpolate position and orientation as a quaternion rather than
- * as angles, because the top-down and following views disagree about which axis
- * is up and slerp is the only thing that crosses that cleanly.
+ * Split screen is a list of {@link CameraView}s, each with its own fraction of
+ * the canvas. Usually there is one covering all of it; in a following view with
+ * several players there is one per ship, tiled.
+ *
+ * They are deliberately separate cameras rather than a `THREE.ArrayCamera`.
+ * That would let three draw every viewport in one pass, but it packs the camera
+ * matrices into a uniform array whose length is compiled into every pipeline
+ * reading it — and the array lives in a module-level singleton, so changing how
+ * many cameras there are mid-session leaves already-built pipelines bound to a
+ * buffer of the wrong size. Drawing each viewport in its own scissored pass
+ * costs a little more and cannot break that way.
  */
 export class CameraDirector {
 
+	private readonly views: CameraView[] = [];
+
 	mode: ViewMode = ViewMode.TOP;
 
-	/** Distance at which the whole sector fits, from the layout. */
-	distance = 1000;
+	/** How the sector is framed, refreshed by the app each frame. */
+	private readonly framing: Framing = { distance: 1000, lift: 0, drift: true, elapsed: 0 };
 
-	/** World units the sector sits above the viewport centre. */
-	lift = 0;
+	/** Number of viewports currently tiled across the canvas. */
+	private viewports = 0;
 
-	/** Idle drift, disabled during a crawl and by the menu setting. */
-	driftEnabled = true;
+	/** The canvas's width over height, so viewports get a true aspect. */
+	private canvasAspect = 1;
 
-	private transition = 0;
-	private readonly fromPosition = new Vector3();
-	private readonly fromQuaternion = new Quaternion();
-	private fromFov = TOP_FOV;
+	constructor() {
 
-	/** Smoothed ship heading the following modes track. */
-	private heading = Math.PI;
+		for ( let i = 0; i < MAX_ROCKETS; i ++ ) this.views.push( new CameraView() );
 
-	/** Smoothed ship position, so a respawn does not snap the camera. */
-	private readonly focus = new Vector3();
-	private hasFocus = false;
+		this.tile( 1 );
 
-	constructor( readonly camera: PerspectiveCamera ) {}
+	}
+
+	/** Tells the views what shape the canvas is. */
+	setCanvasAspect( aspect: number ): void {
+
+		if ( aspect === this.canvasAspect ) return;
+
+		this.canvasAspect = aspect;
+		this.tile( this.viewports );
+
+	}
+
+	/** The viewports to draw this frame, in order. */
+	get active(): readonly CameraView[] {
+
+		return this.views.slice( 0, this.viewports );
+
+	}
+
+	set distance( value: number ) {
+
+		this.framing.distance = value;
+
+	}
+
+	set lift( value: number ) {
+
+		this.framing.lift = value;
+
+	}
+
+	set driftEnabled( value: boolean ) {
+
+		this.framing.drift = value;
+
+	}
+
+	/** True while one camera covers the whole canvas. */
+	get isSingleView(): boolean {
+
+		return this.viewports === 1;
+
+	}
+
+	/** The camera the overlay projects against. */
+	get primaryCamera(): CameraView[ 'camera' ] {
+
+		return this.views[ 0 ].camera;
+
+	}
 
 	/**
 	 * Rotation to add to a player's input so that "up" means "away from the
 	 * camera". Zero in the two fixed views, where the sector is already square
 	 * to the screen.
+	 *
+	 * @param player - Whose viewport to ask; each has its own heading.
 	 */
-	get headingOffset(): number {
+	headingOffset( player: number ): number {
 
-		return POSES[ this.mode ].rotating ? this.heading - Math.PI : 0;
+		if ( ! POSES[ this.mode ].rotating ) return 0;
 
-	}
-
-	/** Begins a flight to a new point of view. */
-	setMode( mode: ViewMode ): void {
-
-		if ( mode === this.mode ) return;
-
-		this.fromPosition.copy( this.camera.position );
-		this.fromQuaternion.copy( this.camera.quaternion );
-		this.fromFov = this.camera.fov;
-		this.transition = 0;
-		this.mode = mode;
+		// With one shared viewport everyone steers relative to that one camera.
+		const index = this.viewports === 1 ? 0 : Math.min( player, this.viewports - 1 );
+		return this.views[ index ].heading - Math.PI;
 
 	}
 
-	/** Drops the camera straight onto the current mode, with no flight. */
+	/** Drops every camera straight onto its pose, with no flight. */
 	snap(): void {
 
-		this.transition = 1;
-		this.hasFocus = false;
+		for ( const view of this.views ) view.snap();
 
 	}
 
 	/**
 	 * @param delta - Seconds since the last frame.
 	 * @param elapsed - Total elapsed seconds, for the idle drift.
-	 * @param player - The ship the following modes track, if there is one.
+	 * @param mode - The point of view to show.
+	 * @param players - Ships to follow, one per viewport where the mode does.
 	 */
-	update( delta: number, elapsed: number, player: GameObject | null ): void {
+	update( delta: number, elapsed: number, mode: ViewMode, players: readonly GameObject[] ): void {
 
-		this.followPlayer( delta, player );
-		this.poseFor( this.mode, elapsed );
+		this.mode = mode;
+		this.framing.elapsed = elapsed;
 
-		const pose = POSES[ this.mode ];
+		// A following view gets one viewport per ship; the fixed views are the
+		// same picture for everyone, so they share one.
+		this.setViewports( FOLLOWING_VIEWS.includes( mode ) ? Math.max( 1, players.length ) : 1 );
 
-		if ( this.transition < 1 ) {
+		for ( let i = 0; i < this.viewports; i ++ ) {
 
-			this.transition = Math.min( 1, this.transition + delta / TRANSITION );
-
-			const t = ease( this.transition );
-
-			this.camera.position.lerpVectors( this.fromPosition, _position, t );
-			this.camera.quaternion.slerpQuaternions( this.fromQuaternion, _quaternion, t );
-			this.camera.fov = MathUtils.lerp( this.fromFov, pose.fov, t );
-			this.camera.updateProjectionMatrix();
-			return;
-
-		}
-
-		// Settled: the fixed views are already where they belong, and the
-		// following ones ease after the ship rather than sticking to it.
-		if ( pose.rotating ) {
-
-			const k = 1 - Math.exp( - FOLLOW_RATE * delta );
-			this.camera.position.lerp( _position, k );
-			this.camera.quaternion.slerp( _quaternion, k );
-
-		} else {
-
-			this.camera.position.copy( _position );
-			this.camera.quaternion.copy( _quaternion );
-
-		}
-
-		if ( this.camera.fov !== pose.fov ) {
-
-			this.camera.fov = pose.fov;
-			this.camera.updateProjectionMatrix();
+			const view = this.views[ i ];
+			view.setMode( mode );
+			view.update( delta, this.framing, players[ i ] ?? null );
 
 		}
 
 	}
 
-	/** Eases the tracked position and heading toward the ship's. */
-	private followPlayer( delta: number, player: GameObject | null ): void {
+	/**
+	 * Tiles the canvas between viewports.
+	 *
+	 * Two players sit side by side; more fill a grid as square as the count
+	 * allows. Viewports are fractions of the canvas, so a window resize needs
+	 * nothing doing here.
+	 */
+	private setViewports( count: number ): void {
 
-		if ( player === null || ! player.live ) return;
+		const clamped = Math.max( 1, Math.min( MAX_ROCKETS, count ) );
+		if ( clamped === this.viewports ) return;
 
-		_target.set( toWorldX( player.x ), toWorldY( player.y ), 0 );
-
-		if ( ! this.hasFocus ) {
-
-			this.focus.copy( _target );
-			this.heading = player.rotation;
-			this.hasFocus = true;
-			return;
-
-		}
-
-		this.focus.lerp( _target, 1 - Math.exp( - FOLLOW_RATE * delta ) );
-
-		// Take the shortest way round, or the camera unwinds the long way when
-		// the ship crosses from one side of due north to the other.
-		const difference = wrapAngle( player.rotation - this.heading );
-		this.heading += difference * ( 1 - Math.exp( - HEADING_RATE * delta ) );
+		this.tile( clamped );
 
 	}
 
-	/** Writes the target position and orientation for a mode into the scratch. */
-	private poseFor( mode: ViewMode, elapsed: number ): void {
+	/** Lays `count` viewports out across the canvas. */
+	private tile( count: number ): void {
 
-		const drift = this.driftEnabled && ! POSES[ mode ].rotating;
-		const swayX = drift ? Math.sin( elapsed * 0.13 ) * 9 + Math.sin( elapsed * 0.31 ) * 2.5 : 0;
-		const swayY = drift ? Math.cos( elapsed * 0.17 ) * 7 : 0;
-		const breath = drift ? 1 + Math.sin( elapsed * 0.09 ) * 0.014 : 1;
+		const clamped = Math.max( 1, Math.min( MAX_ROCKETS, count ) );
+		this.viewports = clamped;
 
-		switch ( mode ) {
+		const columns = Math.ceil( Math.sqrt( clamped ) );
+		const rows = Math.ceil( clamped / columns );
 
-			case ViewMode.TOP: {
+		for ( let i = 0; i < clamped; i ++ ) {
 
-				_position.set( swayX, - this.lift + swayY, this.distance * breath );
-				_target.set( swayX * 0.35, - this.lift + swayY * 0.35, 0 );
-				_dummy.up.set( 0, 1, 0 );
-				break;
+			const column = i % columns;
+			// Viewport y counts up from the bottom, but players read a grid
+			// from the top, so the row is flipped.
+			const row = rows - 1 - Math.floor( i / columns );
 
-			}
-
-			case ViewMode.ANGLED: {
-
-				// Tipped back about the x axis so the near edge of the sector
-				// splays toward the viewer and the far edge narrows away.
-				const pitch = RAD( 34 );
-				const range = this.distance * 1.06 * breath;
-
-				_position.set(
-					swayX,
-					- this.lift - Math.sin( pitch ) * range + swayY,
-					Math.cos( pitch ) * range
-				);
-				// Aiming a little above centre keeps the trapezoid balanced,
-				// since its near edge takes up more of the frame.
-				_target.set( 0, - this.lift + GAME_HEIGHT * 0.06, 0 );
-				_dummy.up.set( 0, 1, 0 );
-				break;
-
-			}
-
-			case ViewMode.CHASE: {
-
-				// Behind and above the ship, looking along its heading. Up is
-				// the sector's normal here, so the plane reads as ground.
-				const dx = Math.sin( this.heading );
-				const dy = - Math.cos( this.heading );
-
-				_position.set(
-					this.focus.x - dx * 150,
-					this.focus.y - dy * 150,
-					128
-				);
-				_target.set( this.focus.x + dx * 90, this.focus.y + dy * 90, 0 );
-				_dummy.up.set( 0, 0, 1 );
-				break;
-
-			}
-
-			case ViewMode.COCKPIT: {
-
-				const dx = Math.sin( this.heading );
-				const dy = - Math.cos( this.heading );
-
-				// Just past the ship's nose, so its own exhaust is behind the
-				// lens rather than filling it.
-				_position.set(
-					this.focus.x + dx * 22,
-					this.focus.y + dy * 22,
-					24
-				);
-				_target.set( this.focus.x + dx * 420, this.focus.y + dy * 420, 6 );
-				_dummy.up.set( 0, 0, 1 );
-				break;
-
-			}
-
-			default:
-				break;
+			this.views[ i ].setViewport(
+				column / columns,
+				row / rows,
+				1 / columns,
+				1 / rows,
+				this.canvasAspect
+			);
 
 		}
 
-		_dummy.position.copy( _position );
-		_dummy.lookAt( _target );
-		_quaternion.copy( _dummy.quaternion );
-
 	}
-
-}
-
-/** Smooth start and finish, so the flight has no visible corners. */
-function ease( t: number ): number {
-
-	return t < 0.5 ? 4 * t * t * t : 1 - Math.pow( - 2 * t + 2, 3 ) / 2;
-
-}
-
-/** Folds an angle into -PI..PI. */
-function wrapAngle( a: number ): number {
-
-	return Math.atan2( Math.sin( a ), Math.cos( a ) );
 
 }

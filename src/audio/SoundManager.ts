@@ -19,6 +19,9 @@ const GAINS: readonly number[] = [ 0.55, 0.55, 0.30, 0.5, 0.5, 0.35, 0.35 ];
 /** How many voices one sample may occupy at once, so pile-ups stay audible. */
 const MAX_VOICES = 4;
 
+/** Events a browser will accept as the gesture that starts audio. */
+const GESTURES: readonly string[] = [ 'pointerdown', 'keydown', 'touchstart' ];
+
 /**
  * `sound.c` and `koules.sndsrv.*` over the Web Audio API.
  *
@@ -70,6 +73,29 @@ export class SoundManager {
 	resume(): void {
 
 		void this.context?.resume();
+
+	}
+
+	/**
+	 * Arms the context to start on the player's first input.
+	 *
+	 * The game goes straight into its opening crawl with nothing to click, so
+	 * there is no gesture to hang the unlock on. Browsers will not start an
+	 * audio context without one, which means the first few seconds are silent
+	 * until the player touches a key, a pad or the screen — at which point
+	 * this fires once and gets out of the way.
+	 */
+	unlockOnGesture(): void {
+
+		const unlock = (): void => {
+
+			this.resume();
+
+			for ( const type of GESTURES ) window.removeEventListener( type, unlock );
+
+		};
+
+		for ( const type of GESTURES ) window.addEventListener( type, unlock, { passive: true } );
 
 	}
 

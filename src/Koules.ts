@@ -6,7 +6,6 @@
 import {
 	Color,
 	MathUtils,
-	PerspectiveCamera,
 	Scene,
 	Vector3,
 	WebGPURenderer
@@ -20,8 +19,10 @@ import {
 	TICK_MS,
 	ViewMode
 } from './core/Constants.js';
+import { submitScore } from './core/HighScores.js';
 import { loadSettings, saveSettings, type SettingsData } from './core/Settings.js';
 import { CameraDirector, TOP_FOV } from './controls/CameraDirector.js';
+import type { GameObject } from './game/GameObject.js';
 import { InputManager } from './controls/InputManager.js';
 import { Game } from './game/Game.js';
 import { Crawl } from './objects/Crawl.js';
@@ -32,6 +33,7 @@ import { Playfield } from './objects/Playfield.js';
 import { SpringField } from './objects/SpringField.js';
 import { Starfield } from './objects/Starfield.js';
 import { SoundManager } from './audio/SoundManager.js';
+import { setBloomTagging } from './materials/BodyMaterials.js';
 import { createBloomPipeline, type BloomPipeline } from './postprocessing/BloomPipeline.js';
 import { HelpLabels, type Project } from './ui/HelpLabels.js';
 import { Hud } from './ui/Hud.js';
@@ -64,7 +66,7 @@ export class Koules {
 
 	private readonly renderer: WebGPURenderer;
 	private readonly scene = new Scene();
-	private readonly camera = new PerspectiveCamera( TOP_FOV, 1, 1, 6000 );
+	private readonly director = new CameraDirector();
 
 	private readonly game = new Game();
 	private readonly input: InputManager;
@@ -85,7 +87,6 @@ export class Koules {
 	private readonly hud: Hud;
 	private readonly labels: HelpLabels;
 	private readonly viewSelector: ViewSelector;
-	private readonly director: CameraDirector;
 
 	private readonly playfieldEl: HTMLElement;
 	private readonly bannerEl: HTMLElement;
@@ -108,6 +109,15 @@ export class Koules {
 
 	/** Set while the boss has been beaten and the ending is queued. */
 	private endingQueued = false;
+
+	/** True between starting a game and filing its score. */
+	private runActive = false;
+
+	/** Deepest sector this run reached, one based, for the score table. */
+	private runSector = 1;
+
+	/** Ships the following views track; rebuilt each frame, never reallocated. */
+	private readonly followed: GameObject[] = [];
 
 	// --- projection --------------------------------------------------------
 
@@ -135,6 +145,7 @@ export class Koules {
 
 		this.renderer = new WebGPURenderer( { antialias: true } );
 		this.renderer.setPixelRatio( Math.min( window.devicePixelRatio, 2 ) );
+		this.renderer.shadowMap.enabled = true;
 		container.append( this.renderer.domElement );
 
 		this.scene.background = new Color( 0x04050a );
@@ -160,8 +171,6 @@ export class Koules {
 		applyTheme();
 		paintStaticText();
 
-		this.director = new CameraDirector( this.camera );
-
 		this.hud = new Hud( required( 'hud-level' ), required( 'hud-players' ) );
 		this.labels = new HelpLabels( required( 'labels' ) );
 		this.viewSelector = new ViewSelector( required( 'views' ), mode => {
@@ -177,7 +186,9 @@ export class Koules {
 			onStart: () => this.startGame(),
 			onQuit: () => this.quit(),
 			onPersist: () => this.persist(),
-			onSettingsChanged: () => this.applySettings()
+			onSettingsChanged: () => this.applySettings(),
+			onResume: () => this.setPaused( false ),
+			onAbandon: () => this.toMenu()
 		} );
 
 		// --- wiring ---------------------------------------------------------
@@ -198,7 +209,7 @@ export class Koules {
 
 		await this.renderer.init();
 
-		this.bloom = createBloomPipeline( this.renderer, this.scene, this.camera );
+		this.bloom = createBloomPipeline( this.renderer, this.scene, this.director.primaryCamera );
 		this.bloom.setEnabled( this.settings.bloom );
 
 		this.onResize();
@@ -212,6 +223,7 @@ export class Koules {
 
 		this.input.connect();
 		this.sound.resume();
+		this.sound.unlockOnGesture();
 
 		// `main()` ran the crawl before anything else.
 		this.game.reset();
@@ -259,7 +271,6 @@ export class Koules {
 		this.sound.enabled = settings.sound;
 		this.bloom?.setEnabled( settings.bloom );
 
-		this.viewSelector?.setSoloGame( settings.nrockets === 1 );
 
 	}
 
@@ -274,7 +285,8 @@ export class Koules {
 
 		game.sound = this.settings.sound;
 		game.gamemode = GameMode.GAME;
-		this.viewSelector.setSoloGame( game.nrockets === 1 );
+		this.runActive = true;
+		this.runSector = game.plan.lastLevel + 1;
 		this.director.snap();
 		game.plan.init();
 		game.plan.initObjects();
@@ -285,22 +297,71 @@ export class Koules {
 	}
 
 	/**
-	 * `quit()`. A browser tab cannot close itself, so this shuts the game down
-	 * and tells the caller, which owns the start gate and knows how to re-arm
-	 * it. Reaching out and un-hiding the gate from here left a dead button.
+	 * `quit()`. A browser tab cannot close itself, so the closest honest thing
+	 * is to put the game back where it started: the opening crawl.
 	 */
 	private quit(): void {
 
+		this.endRun();
 		this.persist();
-		this.dispose();
+
+		this.game.reset();
+		this.game.gamemode = GameMode.MENU;
+		this.game.sound = true;
+		this.menu.visible = false;
+
+		this.introChoreography = true;
+		this.crawlQueue = [ introCrawl ];
+		this.bannerTimer = 0;
+		this.advance();
+
 		this.onQuit();
+
+	}
+
+
+	/** Opens or closes the pause screen. */
+	private setPaused( paused: boolean ): void {
+
+		this.paused = paused;
+
+		if ( paused ) this.menu.showPause();
+		else this.menu.toMain();
+
+		this.menu.visible = paused;
+
+	}
+
+	/**
+	 * Files the run that has just ended.
+	 *
+	 * A cooperative game has no ending short of sector one hundred, so a run is
+	 * whatever the player played before walking away from it. Every ship's
+	 * score is filed separately: in deathmatch they were competing, and in
+	 * co-op they each earned their own.
+	 */
+	private endRun(): void {
+
+		if ( ! this.runActive ) return;
+		this.runActive = false;
+
+		const { game } = this;
+
+		for ( let i = 0; i < game.nrockets; i ++ ) {
+
+			submitScore( game.gameplan, game.objects[ i ].score, this.runSector );
+
+		}
 
 	}
 
 	/** Returns to the menu, leaving the field running as attract mode. */
 	private toMenu(): void {
 
+		this.endRun();
+
 		// `draw_menu()` silenced the game the moment the menu appeared.
+		this.paused = false;
 		this.game.gamemode = GameMode.MENU;
 		this.game.sound = false;
 		this.menu.toMain();
@@ -424,11 +485,11 @@ export class Koules {
 
 		}
 
-		// `IsPressedP()` froze everything until the next keypress.
+		// `IsPressedP()` froze everything until the next keypress; now it opens
+		// a proper screen instead, so sound and the view can be changed there.
 		if ( input.wasPressed( 'KeyP' ) && game.gamemode === GameMode.GAME && this.phase === 'live' ) {
 
-			this.paused = ! this.paused;
-			this.setBanner( this.paused, 'PAUSE' );
+			this.setPaused( ! this.paused );
 
 		}
 
@@ -482,6 +543,13 @@ export class Koules {
 			// take a step until that has played.
 			if ( this.phase !== 'live' ) return;
 
+		} else if ( this.paused ) {
+
+			// The pause screen is the menu, so it still needs driving even
+			// though the sector behind it is stopped.
+			this.menu.update( delta );
+			return;
+
 		} else if ( this.input.wasPressed( 'Escape' ) ) {
 
 			this.toMenu();
@@ -489,12 +557,14 @@ export class Koules {
 
 		}
 
-		if ( this.paused ) return;
-
 		this.stepClock( delta, () => {
 
 			this.pollControls();
 			game.tick();
+
+			// Finishing resets the level counter, so the run's own high-water
+			// mark is what the score table wants.
+			if ( game.plan.level + 1 > this.runSector ) this.runSector = game.plan.level + 1;
 
 			if ( game.finished && ! this.endingQueued ) {
 
@@ -555,9 +625,6 @@ export class Koules {
 
 		if ( game.gamemode !== GameMode.GAME ) return;
 
-		// In the following views the camera turns with the ship, so "up" has
-		// to mean "away from the camera" or the controls stop making sense.
-		const offset = this.director.headingOffset;
 
 		for ( let i = 0; i < game.nrockets; i ++ ) {
 
@@ -565,6 +632,12 @@ export class Koules {
 			const object = game.objects[ i ];
 
 			if ( object.type !== ObjectType.ROCKET ) continue;
+
+			// In the following views the camera turns with the ship, so "up"
+			// has to mean "away from the camera" or the controls stop making
+			// sense. Each split-screen viewport has its own idea of which way
+			// that is.
+			const offset = this.director.headingOffset( i );
 
 			// --- touch --------------------------------------------------------
 
@@ -694,15 +767,27 @@ export class Koules {
 	 */
 	private updateCamera( delta: number ): void {
 
-		const overhead = this.phase !== 'live' || this.game.gamemode !== GameMode.GAME;
+		const { game } = this;
+		const overhead = this.phase !== 'live' || game.gamemode !== GameMode.GAME;
 
 		this.director.driftEnabled = this.settings.cameraMotion && this.phase !== 'crawl';
-		this.director.setMode( overhead ? ViewMode.TOP : this.viewSelector.mode );
 
-		const player = this.game.nrockets === 1 ? this.game.objects[ 0 ] : null;
-		this.director.update( delta, this.elapsed, player );
+		// Following views get one viewport per ship; everything else shares one.
+		this.followed.length = 0;
+		for ( let i = 0; i < game.nrockets; i ++ ) this.followed.push( game.objects[ i ] );
 
-		this.particles.setFov( this.camera.fov );
+		this.director.update(
+			delta,
+			this.elapsed,
+			overhead ? ViewMode.TOP : this.viewSelector.mode,
+			this.followed
+		);
+
+		// Bloom rides on a second render target that only the post-processing
+		// pass supplies, and split screen draws straight to the canvas.
+		setBloomTagging( this.director.isSingleView && this.settings.bloom );
+
+		this.particles.setFov( this.director.primaryCamera.fov );
 
 	}
 
@@ -725,7 +810,6 @@ export class Koules {
 
 		this.renderer.setSize( width, height );
 
-		const aspect = width / height;
 		const tan = Math.tan( MathUtils.degToRad( TOP_FOV ) / 2 );
 
 		// Type steps in whole pixels, so settle its scale before measuring the
@@ -751,14 +835,12 @@ export class Koules {
 
 		const pixelsPerUnit = size / GAME_WIDTH;
 		this.baseDistance = ( height / 2 ) / ( pixelsPerUnit * tan );
-		this.camera.aspect = aspect;
-		this.camera.updateProjectionMatrix();
 
 		// Centre the sector and its status line together in the viewport. On a
 		// tall screen it rides higher than centre, which leaves the space below
 		// clear for a thumb without shrinking the sector.
 		const slack = height - ( size + hud );
-		const bias = aspect < 0.85 ? 0.3 : 0.5;
+		const bias = width / height < 0.85 ? 0.3 : 0.5;
 
 		this.rectSize = size;
 		this.rectLeft = ( width - size ) / 2;
@@ -770,17 +852,21 @@ export class Koules {
 
 		this.director.distance = this.baseDistance;
 		this.director.lift = this.lift;
+		this.director.setCanvasAspect( width / height );
 
 		// The crawl covers the whole window rather than the inset sector.
 		const halfHeight = this.baseDistance * tan;
-		this.crawl.setViewport( halfHeight * aspect, halfHeight );
+		this.crawl.setViewport( halfHeight * ( width / height ), halfHeight );
 
 		this.playfieldEl.style.width = `${ size }px`;
 		this.playfieldEl.style.height = `${ size }px`;
-		this.playfieldEl.style.transform = `translate(0px, ${ this.rectTop - ( height - size ) / 2 }px)`;
+		// Offset with `top` rather than a transform: a transformed element
+		// becomes the containing block for any fixed-position descendant, which
+		// would trap the pause screen's full-canvas scrim inside the square.
+		this.playfieldEl.style.top = `${ this.rectTop - ( height - size ) / 2 }px`;
 
 		this.input.setPlayfieldRect( this.rectLeft, this.rectTop, size );
-		this.particles.setFov( this.camera.fov );
+		this.particles.setFov( this.director.primaryCamera.fov );
 
 	};
 
@@ -834,11 +920,12 @@ export class Koules {
 
 		this.hud.update( game );
 		this.viewSelector.visible = game.gamemode === GameMode.GAME && this.phase === 'live';
-		this.labels.update( game, this.project, this.rectSize );
+		// The annotations are placed against one projection, so they are only
+		// offered when one camera covers the canvas.
+		this.labels.update( this.director.isSingleView ? game : null, this.project, this.rectSize );
 		this.updateStick();
 
-		if ( this.bloom !== null ) this.bloom.postProcessing.render();
-		else this.renderer.render( this.scene, this.camera );
+		this.drawViewports();
 
 	}
 
@@ -866,6 +953,50 @@ export class Koules {
 	}
 
 	/**
+	 * Draws every viewport.
+	 *
+	 * One view is the common case and goes straight through the bloom pipeline.
+	 * Split screen scissors each player's slice of the canvas and draws it in
+	 * turn; the post-processing graph is bound to a single camera, so the extra
+	 * views are drawn plainly and give up the glow rather than the split.
+	 */
+	private drawViewports(): void {
+
+		const views = this.director.active;
+		const post = views.length === 1 ? this.bloom?.postProcessing ?? null : null;
+
+		if ( views.length === 1 ) {
+
+			this.renderer.setScissorTest( false );
+			this.renderer.setViewport( 0, 0, this.viewWidth, this.viewHeight );
+
+			if ( post !== null ) post.render();
+			else this.renderer.render( this.scene, views[ 0 ].camera );
+
+			return;
+
+		}
+
+		this.renderer.setScissorTest( true );
+
+		for ( const view of views ) {
+
+			const x = view.viewport.x * this.viewWidth;
+			const y = view.viewport.y * this.viewHeight;
+			const width = view.viewport.z * this.viewWidth;
+			const height = view.viewport.w * this.viewHeight;
+
+			this.renderer.setViewport( x, y, width, height );
+			this.renderer.setScissor( x, y, width, height );
+			this.renderer.render( this.scene, view.camera );
+
+		}
+
+		this.renderer.setScissorTest( false );
+
+	}
+
+	/**
 	 * World point to pixels relative to the playfield overlay.
 	 *
 	 * Writes into a shared scratch rather than returning a fresh object: with
@@ -873,7 +1004,7 @@ export class Koules {
 	 */
 	private readonly project: Project = ( x, y, z ) => {
 
-		_projected.set( x, y, z ).project( this.camera );
+		_projected.set( x, y, z ).project( this.director.primaryCamera );
 
 		if ( _projected.z > 1 ) return null;
 

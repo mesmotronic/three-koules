@@ -15,7 +15,8 @@ import {
 	PlaneGeometry,
 	PointLight,
 	RepeatWrapping,
-	SRGBColorSpace
+	SRGBColorSpace,
+	ShadowNodeMaterial
 } from 'three/webgpu';
 
 import { GAME_HEIGHT, GAME_WIDTH } from '../core/Constants.js';
@@ -119,6 +120,19 @@ export class Playfield extends Group {
 		floor.position.z = - 40;
 		this.add( floor );
 
+		// A shadow catcher just above it. The floor itself has to stay unlit
+		// to keep the palette honest, and an unlit material cannot receive a
+		// shadow, so the shadows are drawn onto a transparent plane instead —
+		// which also means their strength is a dial rather than a consequence
+		// of the lighting rig.
+		const shadows = new Mesh(
+			new PlaneGeometry( GAME_WIDTH, GAME_HEIGHT ),
+			new ShadowNodeMaterial( { transparent: true, opacity: 0.55, color: 0x000000 } )
+		);
+		shadows.position.z = - 39;
+		shadows.receiveShadow = true;
+		this.add( shadows );
+
 		// --- boundary -------------------------------------------------------
 
 		const thickness = 3;
@@ -151,8 +165,30 @@ export class Playfield extends Group {
 		// the key light sits there; the rest is fill to keep the dark side of
 		// each sphere from going flat black.
 		const key = new DirectionalLight( 0xfff2e0, 2.6 );
-		key.position.set( - 0.55, 0.8, 1 );
+		key.position.set( - 0.55, 0.8, 1 ).normalize().multiplyScalar( 900 );
+		key.castShadow = true;
+
+		// An orthographic frustum sized to the sector: everything that can cast
+		// is inside it, so there is nothing to gain from fitting it per frame.
+		const shadow = key.shadow.camera;
+		// Generous rather than tight: the sector is seen at an angle from the
+		// light, so its footprint on the shadow plane is wider than the sector.
+		shadow.left = - GAME_WIDTH * 0.9;
+		shadow.right = GAME_WIDTH * 0.9;
+		shadow.top = GAME_HEIGHT * 0.9;
+		shadow.bottom = - GAME_HEIGHT * 0.9;
+		shadow.near = 100;
+		shadow.far = 2000;
+		shadow.updateProjectionMatrix();
+
+		key.shadow.mapSize.set( 2048, 2048 );
+		// The floor sits 40 units below objects centred on the plane, so the
+		// bias only has to cover that gap rather than a deep scene.
+		key.shadow.bias = - 0.0008;
+		key.shadow.normalBias = 2;
+
 		this.add( key );
+		this.add( key.target );
 
 		const rim = new DirectionalLight( 0x6fa8ff, 0.7 );
 		rim.position.set( 0.7, - 0.5, 0.4 );

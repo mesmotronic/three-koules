@@ -66,9 +66,9 @@ export class HelpLabels {
 	 * point is behind the camera.
 	 * @param size - Side of the projected playfield square, in pixels.
 	 */
-	update( game: Game, project: Project, size: number ): void {
+	update( game: Game | null, project: Project, size: number ): void {
 
-		if ( ! game.helpmode ) {
+		if ( game === null || ! game.helpmode ) {
 
 			if ( this.labels.length > 0 ) this.clear();
 			return;

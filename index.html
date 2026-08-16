@@ -69,9 +69,9 @@
 		<div id="stick-knob"></div>
 	</div>
 
-	<div id="gate">
-		<button id="gate-button" type="button"><span class="bmp" data-bmp="START"></span></button>
-		<p>WebGPU &middot; keyboard, mouse, gamepad and touch</p>
+	<!-- Shown while WebGPU starts, and reused to report that it cannot. -->
+	<div id="boot">
+		<p id="boot-message">STARTING</p>
 	</div>
 
 	<script type="module" src="./src/main.ts"></script>

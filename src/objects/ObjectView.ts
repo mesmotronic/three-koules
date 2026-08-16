@@ -87,6 +87,7 @@ export class ObjectView extends Group {
 
 		super();
 		this.visible = false;
+		this.body.castShadow = true;
 		this.add( this.body );
 
 	}
@@ -187,6 +188,7 @@ export class ObjectView extends Group {
 		while ( this.eyes.length < count ) {
 
 			const eye = new Mesh( SPHERE, bodyMaterial( appearance ) );
+			eye.castShadow = true;
 			this.eyes.push( eye );
 			this.add( eye );
 

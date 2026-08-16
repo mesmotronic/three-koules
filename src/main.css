@@ -96,6 +96,9 @@ body {
 	height: 100px;
 }
 
+/* Nothing here may use `transform`: it would become the containing block for
+   the pause scrim, which has to cover the whole canvas. */
+
 /* -------------------------------------------------------------------- HUD */
 
 #hud {
@@ -176,11 +179,6 @@ body {
 	box-shadow: 1px 1px 0 var(--koules-select-shadow);
 }
 
-#views .view.unavailable {
-	opacity: 0.2;
-	cursor: default;
-}
-
 /* ------------------------------------------------------------------- menu */
 
 #menu {
@@ -200,6 +198,28 @@ body {
 
 #menu.visible {
 	display: flex;
+}
+
+/*
+ * Paused: the sector is still there behind, and in split screen it fills the
+ * whole canvas rather than the inset square, so the scrim has to as well.
+ */
+#menu.paused::before {
+	content: "";
+	position: fixed;
+	inset: 0;
+	background: rgba(4, 5, 10, 0.74);
+	z-index: -1;
+}
+
+/* The title block belongs to the front screen, not to a paused game. */
+#menu.paused header,
+#menu.paused footer {
+	display: none;
+}
+
+#menu.paused {
+	justify-content: center;
 }
 
 #menu header {
@@ -337,64 +357,36 @@ body {
 
 /* ------------------------------------------------------------ start gate */
 
-#gate {
+/* ------------------------------------------------------------- boot notice */
+
+#boot {
 	position: fixed;
 	inset: 0;
 	display: grid;
 	place-content: center;
-	justify-items: center;
-	gap: 1.6em;
 	background: #04050a;
 	z-index: 10;
-	transition: opacity 0.4s ease;
+	transition: opacity 0.5s ease;
 }
 
-#gate.hidden {
+#boot.hidden {
 	opacity: 0;
 	pointer-events: none;
 }
 
-#gate p {
+#boot p {
 	margin: 0;
+	max-width: 44ch;
+	text-align: center;
 	font-size: 12px;
+	line-height: 1.7;
 	letter-spacing: 0.18em;
 	color: var(--koules-select);
 }
 
-#gate-button {
-	appearance: none;
-	background: transparent;
-	border: 1px solid var(--koules-select);
-	box-shadow: 2px 2px 0 var(--koules-select-shadow);
-	color: var(--koules-text);
-	font: inherit;
-	padding: 1em 2.4em;
-	cursor: pointer;
-	transition: background 0.2s ease;
-	display: grid;
-	place-items: center;
-}
-
-#gate-button:hover,
-#gate-button:focus-visible {
-	background: rgba(235, 130, 130, 0.18);
-	outline: none;
-}
-
-#gate.error {
-	padding: 2em;
-}
-
-#gate.error #gate-button {
-	display: none;
-}
-
-#gate.error p {
-	max-width: 44ch;
-	text-align: center;
-	line-height: 1.7;
+#boot.error p {
 	color: #ff8080;
-	font-family: var(--koules-font);
+	letter-spacing: 0.08em;
 }
 
 /* ------------------------------------------------------- virtual stick */

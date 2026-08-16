@@ -40,6 +40,7 @@ lunatic steering that `!rand () % 4` made effectively dead code.
 | `text.h` | [src/misc/TextData.ts](src/misc/TextData.ts) |
 | `menu.c` | [src/ui/Menu.ts](src/ui/Menu.ts) |
 | `rcfiles.c` | [src/core/Settings.ts](src/core/Settings.ts) — localStorage |
+| — | [src/core/HighScores.ts](src/core/HighScores.ts) — new |
 | `sound.c`, `koules.sndsrv.*` | [src/audio/SoundManager.ts](src/audio/SoundManager.ts) — Web Audio |
 | `sdl/init.c`, `sdl/input.c` | [src/Koules.ts](src/Koules.ts), [src/controls/InputManager.ts](src/controls/InputManager.ts) |
 | `joystick.h` | [`@mesmotronic/xpad`](https://www.npmjs.com/package/@mesmotronic/xpad) |
@@ -128,9 +129,37 @@ The two following views turn with the ship, so they also turn the controls:
 pressing up means "away from the camera" rather than "towards the top of the
 sector". That is the single concession the modes need — the simulation itself
 never learns about any of it, and the two fixed views leave the input exactly
-as the original had it. Following a ship only makes sense with one of them, so
-`CHASE` and `PILOT` are offered in solo games until there is something sensible
-to do about a split screen.
+as the original had it.
+
+**Split screen.** With more than one player, the following views give each ship
+its own viewport: two side by side, more in a grid. They are separate cameras
+in separate scissored passes rather than a `THREE.ArrayCamera` — that would
+draw every viewport in one pass, but it packs the camera matrices into a
+uniform array whose length is compiled into each pipeline reading it, and the
+array is a module-level singleton, so changing how many cameras there are
+mid-session leaves already-built pipelines bound to a buffer of the wrong size.
+The trade is that the bloom pass, which needs a second render target, is not
+available while the screen is split; its tags are lifted for the duration so
+the picture loses the glow rather than failing to compile.
+
+**Shadows.** The sector floor has to stay unlit to keep the palette honest, and
+an unlit material cannot receive a shadow, so the shadows land on a transparent
+catcher just above it. That also makes their strength a dial rather than a
+consequence of the lighting rig.
+
+**A pause screen**, built from the same rows, selector and key handling as the
+main menu, so a screen the original never had behaves exactly like one it did.
+`P` opens it; sound, bloom and camera motion can be changed there, and the
+sector stays visible behind a scrim in whatever view you were playing.
+
+**High scores**, which the original had no notion of. A cooperative game has no
+ending short of sector one hundred — dying replays the sector for a hundred
+point penalty — so a run is taken to end when the player leaves it, however
+that happens. Deathmatch keeps its own table.
+
+**No start button.** The game goes straight into its opening crawl. Browsers
+will not start an audio context without a gesture, so the first few seconds are
+silent until the player touches a key, a pad or the screen.
 
 **Particles have depth.** They did not before: every point sat at z = 0, which
 is invisible looking straight down and looks like wet paper from anywhere else.
@@ -167,11 +196,11 @@ arithmetic was plainly reaching for is used instead.
 | Player 1 | arrow keys |
 | Player 2 | `W` `A` `S` `D` |
 | Players 3–5 | `IJKL`, numpad, `TFGH` — all rebindable |
-| Pause | `P` |
 | Help labels | `H` |
 | Menu | `Esc` |
 | Touch | Anywhere — that point becomes the stick's centre |
 | View | `1`–`4`, or `V` to cycle |
+| Pause | `P` |
 
 Per player, `CONTROL` cycles eight-way keyboard, rotation keyboard, mouse and
 gamepad. Progress, bindings and options persist in localStorage.
