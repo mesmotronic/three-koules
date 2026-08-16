@@ -106,7 +106,8 @@ export class Koules {
 	// --- frame pacing ------------------------------------------------------
 
 	private accumulator = 0;
-	private lastTime = 0;
+	/** Previous frame's timestamp; negative until the loop has run once. */
+	private lastTime = - 1;
 	private elapsed = 0;
 
 	private phase: Phase = 'idle';
@@ -246,7 +247,7 @@ export class Koules {
 		this.crawlQueue = [ introCrawl ];
 		this.advance();
 
-		this.lastTime = performance.now();
+		this.lastTime = - 1;
 		this.renderer.setAnimationLoop( this.animate );
 
 	}
@@ -472,11 +473,20 @@ export class Koules {
 
 	// ------------------------------------------------------------- the loop
 
-	private readonly animate = (): void => {
+	/**
+	 * @param time - The frame's timestamp, from the renderer.
+	 *
+	 * Taken from the argument rather than read off `performance.now()`: under
+	 * an XR session the loop is driven by the headset's own clock, and mixing
+	 * the two would put a step in the delta on the first frame after entering
+	 * or leaving one.
+	 */
+	private readonly animate = ( time: number ): void => {
 
-		const now = performance.now();
-		const delta = Math.min( 0.25, ( now - this.lastTime ) / 1000 );
-		this.lastTime = now;
+		// The sentinel keeps the first frame from inheriting the whole gap
+		// between construction and the loop actually starting.
+		const delta = this.lastTime < 0 ? 0 : Math.min( 0.25, ( time - this.lastTime ) / 1000 );
+		this.lastTime = time;
 		this.elapsed += delta;
 
 		// Pads are sampled once per frame, before anything reads them.
