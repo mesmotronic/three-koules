@@ -8,7 +8,15 @@ import {
 	PointsNodeMaterial,
 	Sprite
 } from 'three/webgpu';
-import { float, instancedBufferAttribute, positionView, shapeCircle, uniform, viewportSize } from 'three/tsl';
+import {
+	float,
+	instancedBufferAttribute,
+	positionView,
+	screenDPR,
+	shapeCircle,
+	uniform,
+	viewportSize
+} from 'three/tsl';
 
 import { MAX_POINT } from '../core/Constants.js';
 import type { ParticleSystem } from '../game/ParticleSystem.js';
@@ -60,9 +68,16 @@ export class ParticleField extends Sprite {
 		// leaves the field of view out and offers nowhere to clamp.
 		const pixelScale = uniform( 1 );
 
+		// `viewportSize` is in physical pixels but a point's size is read as
+		// logical ones — three scales it by the device ratio itself — so the
+		// ratio has to come back out here. Left in, a spark is as many times
+		// too large as the display is dense, and most of them then flatten
+		// against the ceiling below.
+		const logicalHeight = viewportSize.y.mul( 0.5 ).div( screenDPR );
+
 		const distance = positionView.z.negate().max( 1 );
 		const apparent = float( PARTICLE_SIZE )
-			.mul( viewportSize.y.mul( 0.5 ) )
+			.mul( logicalHeight )
 			.div( distance )
 			.mul( pixelScale )
 			.clamp( 1, MAX_PIXELS );

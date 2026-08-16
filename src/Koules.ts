@@ -47,6 +47,15 @@ import { applyTheme } from './ui/Theme.js';
 /** Gap above and below the status line, in CSS pixels. */
 const HUD_GAP = 10;
 
+/**
+ * Ceiling on the drawing buffer's density.
+ *
+ * Viewports and scissor rectangles are given to the renderer in logical
+ * pixels — it scales them by this itself — so nothing else in the layout has
+ * to know about it.
+ */
+const MAX_PIXEL_RATIO = 2;
+
 /** What the app is doing between simulation ticks. */
 type Phase = 'idle' | 'crawl' | 'banner' | 'live';
 
@@ -146,7 +155,6 @@ export class Koules {
 		this.settings = loadSettings();
 
 		this.renderer = new WebGPURenderer( { antialias: true } );
-		this.renderer.setPixelRatio( Math.min( window.devicePixelRatio, 2 ) );
 		this.renderer.shadowMap.enabled = true;
 		container.append( this.renderer.domElement );
 
@@ -836,6 +844,12 @@ export class Koules {
 		this.viewWidth = width;
 		this.viewHeight = height;
 
+		// Re-read on every resize, not just at startup: dragging the window to
+		// a display of a different density changes it, as does browser zoom,
+		// and both arrive as nothing but a resize. Capped at two — a phone
+		// reporting three would triple the fill cost for a difference nobody
+		// can see at this scale.
+		this.renderer.setPixelRatio( Math.min( window.devicePixelRatio, MAX_PIXEL_RATIO ) );
 		this.renderer.setSize( width, height );
 
 		const tan = Math.tan( MathUtils.degToRad( TOP_FOV ) / 2 );
