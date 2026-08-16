@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+	<title>Koules | Made by Mesmotronic</title>
+	<link rel="icon" href="./favicon.ico" sizes="32x32">
+	<link rel="stylesheet" href="./src/main.css">
+</head>
+
+<body>
+
+	<div id="container"></div>
+
+	<!-- Everything below is a transparent overlay aligned to the inset playfield. -->
+	<div id="overlay">
+
+		<div id="playfield">
+
+			<div id="labels"></div>
+
+			<div id="banner"><span class="bmp shadowed"></span></div>
+
+			<div id="menu">
+				<!-- Title lines are painted with the game's 8x8 font at runtime. -->
+				<header>
+					<h1 class="bmp shadowed" data-bmp="THE GAME"></h1>
+					<h2 class="bmp shadowed" data-bmp="K O U L E S"></h2>
+					<p class="bmp shadowed" data-bmp="BY"></p>
+					<p class="bmp shadowed" data-bmp="JAHUSOFT"></p>
+					<div class="gap"></div>
+					<p class="port">
+						<a href="https://mesmotronic.com" target="_blank" rel="noopener"
+							class="bmp shadowed" data-bmp="Three.js port by Mesmotronic"></a>
+					</p>
+					<p class="bmp shadowed" data-bmp="PRESS P FOR PAUSE / H FOR HELP"></p>
+				</header>
+				<div id="menu-rows">
+					<div id="menu-selector"></div>
+					<ul id="menu-items"></ul>
+				</div>
+				<footer>
+					<a href="https://mesmotronic.com" target="_blank" rel="noopener">
+						<img src="./mesmotronic.svg" alt="Made by Mesmotronic" width="166" height="36">
+					</a>
+				</footer>
+			</div>
+
+			<div id="hud">
+				<div id="hud-level"></div>
+				<div id="hud-players"></div>
+			</div>
+
+		</div>
+
+	</div>
+
+	<!-- Virtual stick: the anchor is wherever the player first touched. -->
+	<div id="stick" aria-hidden="true">
+		<div id="stick-base"></div>
+		<div id="stick-knob"></div>
+	</div>
+
+	<div id="gate">
+		<button id="gate-button" type="button"><span class="bmp" data-bmp="START"></span></button>
+		<p>WebGPU &middot; keyboard, mouse, gamepad and touch</p>
+	</div>
+
+	<script type="module" src="./src/main.ts"></script>
+
+</body>
+
+</html>

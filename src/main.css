@@ -1,0 +1,390 @@
+/*
+ * Colour tokens are overwritten at startup from the game's own VGA palette
+ * (see ui/Theme.ts). The values here are only what shows before that runs.
+ */
+:root {
+	--bmp-scale: 2;
+	--koules-font: ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
+	--koules-text: #ffffff;
+	--koules-shadow: #000000;
+	--koules-dim: #0000a2;
+	--koules-select: #eb8282;
+	--koules-select-shadow: #590000;
+	--koules-arrow: #eb8282;
+	--koules-frame: #0000a2;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+a {
+	color: var(--koules-text);
+	text-decoration: none;
+}
+
+/* The bitmap runs carry their own metrics; UA heading and paragraph margins
+   would otherwise space the interface out by several lines. */
+h1,
+h2,
+p,
+ul,
+figure {
+	margin: 0;
+}
+
+html,
+body {
+	margin: 0;
+	padding: 0;
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+	background: #04050a;
+	color: var(--koules-text);
+	font-family: var(--koules-font);
+	-webkit-font-smoothing: antialiased;
+	touch-action: none;
+}
+
+#container,
+#container canvas {
+	position: fixed;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	display: block;
+}
+
+/* -------------------------------------------------------- bitmap font runs */
+
+/*
+ * Every interface string is a canvas of the game's own 8x8 font, drawn at a
+ * whole number of pixels per font pixel. The colour is baked into the bitmap
+ * because a CSS mask would be resampled and lose the hard edges.
+ */
+.bmp {
+	display: block;
+	background-repeat: no-repeat;
+	background-size: 100% 100%;
+	image-rendering: pixelated;
+	flex: none;
+}
+
+/* The black shadow every DrawWhiteMaskedText call was paired with. */
+.bmp.shadowed {
+	filter: drop-shadow(1px 1px 0 var(--koules-shadow));
+}
+
+/* ---------------------------------------------------------------- overlay */
+
+#overlay {
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+	display: grid;
+	place-items: center;
+}
+
+/*
+ * Sized from script to exactly match the projected playfield square, so that
+ * DOM chrome and the WebGPU scene stay locked together at any aspect ratio.
+ */
+#playfield {
+	position: relative;
+	width: 100px;
+	height: 100px;
+}
+
+/* -------------------------------------------------------------------- HUD */
+
+#hud {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: calc(100% + 10px);
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+#hud-players {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px 22px;
+}
+
+#hud-players .player {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	white-space: nowrap;
+}
+
+#hud-players .pip {
+	width: 0.7em;
+	height: 0.7em;
+	border-radius: 50%;
+	box-shadow: 0 0 0.5em currentColor;
+	background: currentColor;
+	font-size: 12px;
+	flex: none;
+}
+
+#hud-players .dead {
+	opacity: 0.4;
+}
+
+/* ------------------------------------------------------------------- menu */
+
+#menu {
+	position: absolute;
+	inset: 0;
+	display: none;
+	flex-direction: column;
+	align-items: center;
+	/* Distribute rather than push with auto margins, so the footer can never
+	   be shoved past the bottom of the sector on a short screen. */
+	justify-content: space-between;
+	gap: calc(2px * var(--bmp-scale));
+	padding: 3% 4%;
+	overflow: hidden;
+	pointer-events: auto;
+}
+
+#menu.visible {
+	display: flex;
+}
+
+#menu header {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: calc(2px * var(--bmp-scale));
+}
+
+/* The original spaced these four title lines ten pixels apart. */
+#menu header .gap {
+	height: calc(6px * var(--bmp-scale));
+}
+
+#menu .port a {
+	display: block;
+	border-bottom: 1px solid transparent;
+	transition: border-color 0.2s ease;
+}
+
+#menu .port a:hover,
+#menu .port a:focus-visible {
+	border-bottom-color: var(--koules-select);
+	outline: none;
+}
+
+/* --------------------------------------------------------------- menu rows */
+
+#menu-rows {
+	position: relative;
+}
+
+#menu-items {
+	position: relative;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: calc(2px * var(--bmp-scale));
+}
+
+#menu-items li {
+	display: flex;
+	align-items: center;
+	gap: calc(3px * var(--bmp-scale));
+	cursor: pointer;
+	/* Sits above the selection rectangle. */
+	position: relative;
+	z-index: 1;
+}
+
+#menu-items li .spinner {
+	cursor: pointer;
+}
+
+/*
+ * `draw_menu()` drew two rectangles: a bright one, and a darker one offset by
+ * a single pixel behind it. The original animated the corners into place over
+ * five frames, which at 25Hz is the transition below.
+ */
+#menu-selector {
+	position: absolute;
+	left: 0;
+	top: 0;
+	border: 1px solid var(--koules-select);
+	box-shadow: 1px 1px 0 var(--koules-select-shadow);
+	pointer-events: none;
+	opacity: 0;
+	transition: transform 0.2s ease, width 0.2s ease, height 0.2s ease, opacity 0.15s ease;
+	z-index: 0;
+}
+
+#menu-selector.visible {
+	opacity: 1;
+}
+
+#menu footer {
+	width: 100%;
+	display: flex;
+	justify-content: center;
+}
+
+#menu footer a {
+	display: inline-block;
+	opacity: 0.75;
+	transition: opacity 0.2s ease;
+}
+
+#menu footer a:hover,
+#menu footer a:focus-visible {
+	opacity: 1;
+	outline: none;
+}
+
+#menu footer img {
+	display: block;
+	width: min(46%, 190px);
+	min-width: 96px;
+	height: auto;
+}
+
+/* --------------------------------------------------------------- banner */
+
+/* "SECTOR 12", "PAUSE", "GET READY" — drawn dead centre of the playfield. */
+#banner {
+	position: absolute;
+	inset: 0;
+	display: none;
+	align-items: center;
+	justify-content: center;
+}
+
+#banner.visible {
+	display: flex;
+}
+
+/* --------------------------------------------------------- help labels */
+
+#labels {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+}
+
+#labels .bmp {
+	position: absolute;
+	transform: translate(0, -50%);
+	pointer-events: none;
+}
+
+/* ------------------------------------------------------------ start gate */
+
+#gate {
+	position: fixed;
+	inset: 0;
+	display: grid;
+	place-content: center;
+	justify-items: center;
+	gap: 1.6em;
+	background: #04050a;
+	z-index: 10;
+	transition: opacity 0.4s ease;
+}
+
+#gate.hidden {
+	opacity: 0;
+	pointer-events: none;
+}
+
+#gate p {
+	margin: 0;
+	font-size: 12px;
+	letter-spacing: 0.18em;
+	color: var(--koules-select);
+}
+
+#gate-button {
+	appearance: none;
+	background: transparent;
+	border: 1px solid var(--koules-select);
+	box-shadow: 2px 2px 0 var(--koules-select-shadow);
+	color: var(--koules-text);
+	font: inherit;
+	padding: 1em 2.4em;
+	cursor: pointer;
+	transition: background 0.2s ease;
+	display: grid;
+	place-items: center;
+}
+
+#gate-button:hover,
+#gate-button:focus-visible {
+	background: rgba(235, 130, 130, 0.18);
+	outline: none;
+}
+
+#gate.error {
+	padding: 2em;
+}
+
+#gate.error #gate-button {
+	display: none;
+}
+
+#gate.error p {
+	max-width: 44ch;
+	text-align: center;
+	line-height: 1.7;
+	color: #ff8080;
+	font-family: var(--koules-font);
+}
+
+/* ------------------------------------------------------- virtual stick */
+
+/*
+ * Touch play: the anchor is planted wherever the finger lands and the knob
+ * tracks it, so the whole screen is the controller rather than a fixed pad in
+ * one corner.
+ */
+#stick {
+	position: fixed;
+	left: 0;
+	top: 0;
+	width: 0;
+	height: 0;
+	pointer-events: none;
+	opacity: 0;
+	transition: opacity 0.15s ease;
+	z-index: 5;
+}
+
+#stick.visible {
+	opacity: 1;
+}
+
+#stick-base,
+#stick-knob {
+	position: absolute;
+	border-radius: 50%;
+	transform: translate(-50%, -50%);
+}
+
+#stick-base {
+	border: 2px solid var(--koules-select);
+	opacity: 0.35;
+}
+
+#stick-knob {
+	background: var(--koules-select);
+	box-shadow: 0 0 18px var(--koules-select);
+	opacity: 0.6;
+}
