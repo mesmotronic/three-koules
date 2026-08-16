@@ -19,10 +19,10 @@ import {
 	TICK_MS,
 	ViewMode
 } from './core/Constants.js';
-import { submitScore } from './core/HighScores.js';
+import { submitScores, type HighScore } from './core/HighScores.js';
 import { loadSettings, saveSettings, type SettingsData } from './core/Settings.js';
-import { CameraDirector, TOP_FOV } from './controls/CameraDirector.js';
-import type { GameObject } from './game/GameObject.js';
+import { CameraDirector } from './controls/CameraDirector.js';
+import { TOP_FOV } from './controls/CameraView.js';
 import { InputManager } from './controls/InputManager.js';
 import { Game } from './game/Game.js';
 import { Crawl } from './objects/Crawl.js';
@@ -128,9 +128,6 @@ export class Koules {
 	/** Deepest sector this run reached, one based, for the score table. */
 	private runSector = 1;
 
-	/** Ships the following views track; rebuilt each frame, never reallocated. */
-	private readonly followed: GameObject[] = [];
-
 	// --- projection --------------------------------------------------------
 
 	private viewWidth = 1;
@@ -146,11 +143,6 @@ export class Koules {
 	private readonly stickBaseEl: HTMLElement;
 	private readonly stickKnobEl: HTMLElement;
 
-	/**
-	 * Raised when the player quits, so the host can put its own chrome back.
-	 */
-	onQuit: () => void = () => {};
-
 	constructor( container: HTMLElement ) {
 
 		this.settings = loadSettings();
@@ -160,6 +152,11 @@ export class Koules {
 		container.append( this.renderer.domElement );
 
 		this.scene.background = new Color( 0x04050a );
+
+		// Walked once a frame from `drawViewports`, rather than once per call to
+		// `render` — which, with split screen and a shadow pass, is up to eight
+		// times over the same graph for the same answer.
+		this.scene.matrixWorldAutoUpdate = false;
 
 		this.input = new InputManager( this.renderer.domElement );
 		this.intro = new IntroSequence( this.game.particles, sample => this.sound.play( sample ) );
@@ -332,8 +329,6 @@ export class Koules {
 		this.bannerTimer = 0;
 		this.advance();
 
-		this.onQuit();
-
 	}
 
 
@@ -383,12 +378,15 @@ export class Koules {
 		this.runActive = false;
 
 		const { game } = this;
+		const runs: HighScore[] = [];
 
 		for ( let i = 0; i < game.nrockets; i ++ ) {
 
-			submitScore( game.gameplan, game.objects[ i ].score, this.runSector );
+			runs.push( { score: game.objects[ i ].score, sector: this.runSector } );
 
 		}
+
+		submitScores( game.gameplan, runs );
 
 	}
 
@@ -818,20 +816,15 @@ export class Koules {
 
 		this.director.driftEnabled = this.settings.cameraMotion && this.phase !== 'crawl';
 
-		// Following views get one viewport per ship; everything else shares one.
-		this.followed.length = 0;
-		for ( let i = 0; i < game.nrockets; i ++ ) this.followed.push( game.objects[ i ] );
-
+		// The ships are handed over in place, with a count: following views take
+		// one viewport each, and everything else shares one.
 		this.director.update(
 			delta,
 			this.elapsed,
 			overhead ? ViewMode.TOP : this.viewSelector.mode,
-			this.followed
+			game.objects,
+			game.nrockets
 		);
-
-		// Bloom rides on a second render target that only the post-processing
-		// pass supplies, and split screen draws straight to the canvas.
-		setBloomTagging( this.director.isSingleView && this.settings.bloom );
 
 		this.particles.setFov( this.director.primaryCamera.fov );
 
@@ -868,12 +861,14 @@ export class Koules {
 		// status line that depends on it.
 		const provisional = Math.min( width, height );
 
+		// `updateBitmapScale` redraws every string it has drawn before, so only
+		// what it cannot reach needs saying here: text that has never been
+		// painted, and the menu, whose spinner arrows are not strings and whose
+		// selection rectangle has to be measured against the new type.
 		if ( updateBitmapScale( provisional ) ) {
 
 			paintStaticText();
 			this.menu.rescale();
-			this.viewSelector?.rescale();
-			this.soundButton?.rescale();
 
 		}
 
@@ -972,10 +967,7 @@ export class Koules {
 		this.particles.update( game.particles, this.paused ? 1 : alpha );
 
 		this.hud.update( game );
-		this.soundButton.update(
-			this.settings.sound && this.sound.isRunning,
-			this.settings.sound && ! this.sound.isRunning
-		);
+		this.soundButton.update( this.settings.sound, this.sound.isRunning );
 		this.viewSelector.visible = game.gamemode === GameMode.GAME && this.phase === 'live';
 		// The annotations are placed against one projection, so they are only
 		// offered when one camera covers the canvas.
@@ -1016,40 +1008,61 @@ export class Koules {
 	 * Split screen scissors each player's slice of the canvas and draws it in
 	 * turn; the post-processing graph is bound to a single camera, so the extra
 	 * views are drawn plainly and give up the glow rather than the split.
+	 *
+	 * Whether the post-processing pass runs is decided here and nowhere else.
+	 * Materials tagged for bloom write to a second render target that only that
+	 * pass supplies, so a tagged material drawn straight to the canvas fails to
+	 * compile; keeping the tag and the choice of path on the same line is what
+	 * stops the two drifting apart.
 	 */
 	private drawViewports(): void {
 
-		const views = this.director.active;
-		const post = views.length === 1 ? this.bloom?.postProcessing ?? null : null;
+		const { renderer, director } = this;
+		const count = director.viewportCount;
 
-		if ( views.length === 1 ) {
+		const post = count === 1 && this.settings.bloom ? this.bloom?.postProcessing ?? null : null;
+		setBloomTagging( post !== null );
 
-			this.renderer.setScissorTest( false );
-			this.renderer.setViewport( 0, 0, this.viewWidth, this.viewHeight );
+		// Recomposed once for the frame rather than once per `render()` call,
+		// which for a four way split would mean walking every object, its eyes,
+		// ring and decal, the starfield and the spring field eight times over.
+		this.scene.updateMatrixWorld();
+
+		// One request covers every viewport: the first to draw refreshes the
+		// map and the others reuse it. Skipped while paused, where nothing has
+		// moved since the last frame.
+		if ( ! this.paused ) this.playfield.invalidateShadows();
+
+		if ( count === 1 ) {
+
+			renderer.setScissorTest( false );
+			renderer.setViewport( 0, 0, this.viewWidth, this.viewHeight );
 
 			if ( post !== null ) post.render();
-			else this.renderer.render( this.scene, views[ 0 ].camera );
+			else renderer.render( this.scene, director.viewAt( 0 ).camera );
 
 			return;
 
 		}
 
-		this.renderer.setScissorTest( true );
+		renderer.setScissorTest( true );
 
-		for ( const view of views ) {
+		for ( let i = 0; i < count; i ++ ) {
+
+			const view = director.viewAt( i );
 
 			const x = view.viewport.x * this.viewWidth;
 			const y = view.viewport.y * this.viewHeight;
 			const width = view.viewport.z * this.viewWidth;
 			const height = view.viewport.w * this.viewHeight;
 
-			this.renderer.setViewport( x, y, width, height );
-			this.renderer.setScissor( x, y, width, height );
-			this.renderer.render( this.scene, view.camera );
+			renderer.setViewport( x, y, width, height );
+			renderer.setScissor( x, y, width, height );
+			renderer.render( this.scene, view.camera );
 
 		}
 
-		this.renderer.setScissorTest( false );
+		renderer.setScissorTest( false );
 
 	}
 

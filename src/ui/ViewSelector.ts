@@ -82,18 +82,6 @@ export class ViewSelector {
 
 	}
 
-	/** Repaints after a scale change, since the labels are bitmaps. */
-	rescale(): void {
-
-		for ( const [ index, button ] of this.buttons.entries() ) {
-
-			const label = button.firstElementChild as HTMLElement | null;
-			if ( label !== null ) setBitmapText( label, VIEW_LABELS[ MODES[ index ] ] );
-
-		}
-
-	}
-
 	private refresh(): void {
 
 		for ( const [ index, button ] of this.buttons.entries() ) {

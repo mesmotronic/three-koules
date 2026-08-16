@@ -1,11 +1,9 @@
 // SPDX-FileCopyrightText: © 2026 Mesmotronic Limited
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-import { FOLLOWING_VIEWS, MAX_ROCKETS, ViewMode } from '../core/Constants.js';
+import { MAX_ROCKETS, ViewMode } from '../core/Constants.js';
 import type { GameObject } from '../game/GameObject.js';
-import { CameraView, POSES, TOP_FOV, type Framing } from './CameraView.js';
-
-export { POSES, TOP_FOV };
+import { CameraView, POSES, type Framing } from './CameraView.js';
 
 /**
  * Places the cameras, and flies them between the game's points of view.
@@ -39,10 +37,13 @@ export class CameraDirector {
 	private readonly framing: Framing = { distance: 1000, lift: 0, drift: true, elapsed: 0 };
 
 	/** Number of viewports currently tiled across the canvas. */
-	private viewports = 0;
+	private viewports = 1;
 
 	/** The canvas's width over height, so viewports get a true aspect. */
 	private canvasAspect = 1;
+
+	/** The aspect the current layout was built for; NaN until it is built. */
+	private tiledAspect = NaN;
 
 	constructor() {
 
@@ -58,14 +59,21 @@ export class CameraDirector {
 		if ( aspect === this.canvasAspect ) return;
 
 		this.canvasAspect = aspect;
-		this.tile( this.viewports );
+		this.tile();
 
 	}
 
-	/** The viewports to draw this frame, in order. */
-	get active(): readonly CameraView[] {
+	/** How many viewports to draw this frame. */
+	get viewportCount(): number {
 
-		return this.views.slice( 0, this.viewports );
+		return this.viewports;
+
+	}
+
+	/** One of the viewports to draw, counted from zero. */
+	viewAt( index: number ): CameraView {
+
+		return this.views[ index ];
 
 	}
 
@@ -130,15 +138,24 @@ export class CameraDirector {
 	 * @param elapsed - Total elapsed seconds, for the idle drift.
 	 * @param mode - The point of view to show.
 	 * @param players - Ships to follow, one per viewport where the mode does.
+	 * @param count - How many of `players` are in the game.
 	 */
-	update( delta: number, elapsed: number, mode: ViewMode, players: readonly GameObject[] ): void {
+	update(
+		delta: number,
+		elapsed: number,
+		mode: ViewMode,
+		players: readonly GameObject[],
+		count: number
+	): void {
 
 		this.mode = mode;
 		this.framing.elapsed = elapsed;
 
-		// A following view gets one viewport per ship; the fixed views are the
-		// same picture for everyone, so they share one.
-		this.setViewports( FOLLOWING_VIEWS.includes( mode ) ? Math.max( 1, players.length ) : 1 );
+		// A view that turns with the ship gets one viewport per ship; the fixed
+		// views are the same picture for everyone, so they share one. Asking the
+		// pose table rather than a second list of modes keeps the two answers
+		// from ever disagreeing.
+		this.tile( POSES[ mode ].rotating ? count : 1 );
 
 		for ( let i = 0; i < this.viewports; i ++ ) {
 
@@ -155,22 +172,22 @@ export class CameraDirector {
 	 *
 	 * Two players sit side by side; more fill a grid as square as the count
 	 * allows. Viewports are fractions of the canvas, so a window resize needs
-	 * nothing doing here.
+	 * nothing doing here — only a change of shape, which is why the aspect is
+	 * read fresh rather than passed in.
+	 *
+	 * @param count - Viewports wanted; defaults to however many there already
+	 * are, for a re-tile that only the canvas shape has prompted.
 	 */
-	private setViewports( count: number ): void {
+	private tile( count: number = this.viewports ): void {
 
 		const clamped = Math.max( 1, Math.min( MAX_ROCKETS, count ) );
-		if ( clamped === this.viewports ) return;
 
-		this.tile( clamped );
+		// Called every frame, but the layout only ever changes when the player
+		// count, the view or the window does.
+		if ( clamped === this.viewports && this.canvasAspect === this.tiledAspect ) return;
 
-	}
-
-	/** Lays `count` viewports out across the canvas. */
-	private tile( count: number ): void {
-
-		const clamped = Math.max( 1, Math.min( MAX_ROCKETS, count ) );
 		this.viewports = clamped;
+		this.tiledAspect = this.canvasAspect;
 
 		const columns = Math.ceil( Math.sqrt( clamped ) );
 		const rows = Math.ceil( clamped / columns );

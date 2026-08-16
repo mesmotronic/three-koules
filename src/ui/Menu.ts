@@ -5,6 +5,7 @@
 
 import { DIFFICULTIES, GamePlanMode, MAX_ROCKETS } from '../core/Constants.js';
 import { highScores } from '../core/HighScores.js';
+import { ball, paletteHex } from '../core/Palette.js';
 import type { SettingsData } from '../core/Settings.js';
 import type { InputManager } from '../controls/InputManager.js';
 import type { Game } from '../game/Game.js';
@@ -194,19 +195,31 @@ export class Menu {
 			{ label: () => 'CONTROL', activate: () => { this.screen = 'control'; this.build(); } },
 			{ label: () => 'GAME MODE', activate: () => { this.screen = 'mode'; this.build(); } },
 			{ label: () => 'DIFFICULTY', activate: () => { this.screen = 'difficulty'; this.build(); } },
-			{
-				label: () => settings.sound ? 'SOUND ON' : 'SOUND OFF',
-				activate: () => { settings.sound = ! settings.sound; this.changed(); }
-			},
-			{
-				label: () => settings.bloom ? 'BLOOM ON' : 'BLOOM OFF',
-				activate: () => { settings.bloom = ! settings.bloom; this.changed(); }
-			},
-			{
-				label: () => settings.cameraMotion ? 'CAMERA MOTION ON' : 'CAMERA MOTION OFF',
-				activate: () => { settings.cameraMotion = ! settings.cameraMotion; this.changed(); }
-			},
+			...this.toggleItems(),
 			{ label: () => 'QUIT', activate: () => this.hooks.onQuit() }
+		];
+
+	}
+
+	/**
+	 * The rows that flip a setting on and off.
+	 *
+	 * Shared by the main and pause screens so the two can never offer different
+	 * wording, or one of them miss a setting the other gained.
+	 */
+	private toggleItems(): MenuItem[] {
+
+		const { settings } = this;
+
+		const toggle = ( name: string, get: () => boolean, set: ( v: boolean ) => void ): MenuItem => ( {
+			label: () => `${ name } ${ get() ? 'ON' : 'OFF' }`,
+			activate: () => { set( ! get() ); this.changed(); }
+		} );
+
+		return [
+			toggle( 'SOUND', () => settings.sound, v => { settings.sound = v; } ),
+			toggle( 'BLOOM', () => settings.bloom, v => { settings.bloom = v; } ),
+			toggle( 'CAMERA MOTION', () => settings.cameraMotion, v => { settings.cameraMotion = v; } )
 		];
 
 	}
@@ -214,22 +227,9 @@ export class Menu {
 	/** The pause screen, shown over the running sector. */
 	private pauseItems(): MenuItem[] {
 
-		const { settings } = this;
-
 		return [
 			{ label: () => 'RESUME', activate: () => this.hooks.onResume() },
-			{
-				label: () => settings.sound ? 'SOUND ON' : 'SOUND OFF',
-				activate: () => { settings.sound = ! settings.sound; this.changed(); }
-			},
-			{
-				label: () => settings.bloom ? 'BLOOM ON' : 'BLOOM OFF',
-				activate: () => { settings.bloom = ! settings.bloom; this.changed(); }
-			},
-			{
-				label: () => settings.cameraMotion ? 'CAMERA MOTION ON' : 'CAMERA MOTION OFF',
-				activate: () => { settings.cameraMotion = ! settings.cameraMotion; this.changed(); }
-			},
+			...this.toggleItems(),
 			{ label: () => 'ABANDON GAME', activate: () => this.hooks.onAbandon() }
 		];
 
@@ -664,7 +664,8 @@ export class Menu {
 
 			this.list.textContent = '';
 
-			const arrow = getComputedStyle( this.root ).getPropertyValue( '--koules-arrow' ).trim() || '#eb8282';
+			const arrow = getComputedStyle( this.root ).getPropertyValue( '--koules-arrow' ).trim() ||
+				paletteHex( ball( 2 ) );
 
 			for ( const [ index, label ] of labels.entries() ) {
 
@@ -673,21 +674,22 @@ export class Menu {
 
 				const text = document.createElement( 'span' );
 				text.className = 'bmp shadowed label';
-				setBitmapText( text, label, this.textColor() );
 
-				if ( this.items[ index ]?.spinner !== undefined && selected >= 0 ) {
+				const spinner = this.items[ index ]?.spinner !== undefined && selected >= 0;
+				const arrows: HTMLElement[] = [];
 
-					const less = document.createElement( 'span' );
-					less.className = 'spinner';
-					less.dataset.step = '-1';
-					setBitmapArrow( less, 'left', arrow );
+				if ( spinner ) {
 
-					const more = document.createElement( 'span' );
-					more.className = 'spinner';
-					more.dataset.step = '1';
-					setBitmapArrow( more, 'right', arrow );
+					for ( const step of [ - 1, 1 ] ) {
 
-					li.append( less, text, more );
+						const element = document.createElement( 'span' );
+						element.className = 'spinner';
+						element.dataset.step = String( step );
+						arrows.push( element );
+
+					}
+
+					li.append( arrows[ 0 ], text, arrows[ 1 ] );
 
 				} else {
 
@@ -696,6 +698,17 @@ export class Menu {
 				}
 
 				this.list.append( li );
+
+				// Painted only once the row is in the document: the colour is
+				// baked into the bitmap, and a detached element has no computed
+				// style to take one from.
+				setBitmapText( text, label );
+				if ( spinner ) {
+
+					setBitmapArrow( arrows[ 0 ], 'left', arrow );
+					setBitmapArrow( arrows[ 1 ], 'right', arrow );
+
+				}
 
 			}
 
@@ -709,19 +722,13 @@ export class Menu {
 			for ( const [ index, label ] of labels.entries() ) {
 
 				const text = rows[ index ]?.querySelector<HTMLElement>( '.label' );
-				if ( text !== null && text !== undefined ) setBitmapText( text, label, this.textColor() );
+				if ( text !== null && text !== undefined ) setBitmapText( text, label );
 
 			}
 
 		}
 
 		this.moveSelector( selected );
-
-	}
-
-	private textColor(): string {
-
-		return getComputedStyle( this.root ).getPropertyValue( '--koules-text' ).trim() || '#ffffff';
 
 	}
 

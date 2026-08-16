@@ -2,18 +2,17 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import { GamePlanMode } from './Constants.js';
+import { readJson, writeJson } from './Storage.js';
 
 /** One finished run. */
 export interface HighScore {
 	score: number;
 	/** Sector reached, one based, as the interface counts them. */
 	sector: number;
-	/** Milliseconds since the epoch, so the table can show a date. */
-	at: number;
 }
 
 /** How many runs each table remembers. */
-export const TABLE_SIZE = 8;
+const TABLE_SIZE = 8;
 
 const STORAGE_KEY = 'three-koules/scores';
 
@@ -28,79 +27,40 @@ type Tables = Record<string, HighScore[]>;
  * menu, or abandoning from the pause screen. Deathmatch keeps its own table,
  * since its scores mean something quite different.
  */
-function load(): Tables {
-
-	try {
-
-		const raw = localStorage.getItem( STORAGE_KEY );
-		if ( raw === null ) return {};
-
-		const parsed = JSON.parse( raw ) as Tables;
-		return typeof parsed === 'object' && parsed !== null ? parsed : {};
-
-	} catch {
-
-		return {};
-
-	}
-
-}
-
-function save( tables: Tables ): void {
-
-	try {
-
-		localStorage.setItem( STORAGE_KEY, JSON.stringify( tables ) );
-
-	} catch {
-
-		// Private browsing or a full quota; the run simply is not remembered.
-
-	}
-
-}
-
 const keyFor = ( plan: GamePlanMode ): string =>
 	plan === GamePlanMode.DEATHMATCH ? 'deathmatch' : 'cooperative';
 
 /** The table for a game plan, best first. */
 export function highScores( plan: GamePlanMode ): HighScore[] {
 
-	return load()[ keyFor( plan ) ] ?? [];
+	return readJson<Tables>( STORAGE_KEY, {} )[ keyFor( plan ) ] ?? [];
 
 }
 
 /**
- * Files a run, if it earned a place.
+ * Files a whole game's worth of runs.
  *
- * @returns The row's index in the table, or -1 if it did not make it.
+ * Every ship at once rather than one at a time: they finish together, and a
+ * five player game would otherwise read, parse, sort, serialise and write the
+ * table five times over at the moment the menu is being rebuilt.
  */
-export function submitScore( plan: GamePlanMode, score: number, sector: number ): number {
+export function submitScores( plan: GamePlanMode, runs: readonly HighScore[] ): void {
 
 	// A run that never got going is not worth a row.
-	if ( score <= 0 ) return - 1;
+	const earned = runs.filter( run => run.score > 0 );
+	if ( earned.length === 0 ) return;
 
-	const tables = load();
+	const tables = readJson<Tables>( STORAGE_KEY, {} );
 	const key = keyFor( plan );
 	const table = tables[ key ] ?? [];
-	const entry: HighScore = { score, sector, at: Date.now() };
 
-	table.push( entry );
+	table.push( ...earned );
 	// Ties keep the deeper run ahead: reaching sector 40 with the same score
 	// as someone who stopped at 12 is the better game.
 	table.sort( ( a, b ) => b.score - a.score || b.sector - a.sector );
 	table.length = Math.min( table.length, TABLE_SIZE );
 
 	tables[ key ] = table;
-	save( tables );
-
-	return table.indexOf( entry );
-
-}
-
-/** Best score on record, for the menu to show at a glance. */
-export function bestScore( plan: GamePlanMode ): number {
-
-	return highScores( plan )[ 0 ]?.score ?? 0;
+	writeJson( STORAGE_KEY, tables );
 
 }

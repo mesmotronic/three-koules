@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import { GamePlanMode, MAX_ROCKETS, ViewMode } from './Constants.js';
+import { readJson, writeJson } from './Storage.js';
 
 /**
  * `rcfiles.c` in localStorage.
@@ -70,48 +71,28 @@ export function createDefaultSettings(): SettingsData {
 export function loadSettings(): SettingsData {
 
 	const defaults = createDefaultSettings();
+	const stored = readJson<Partial<SettingsData>>( STORAGE_KEY, {} );
+	const merged = { ...defaults, ...stored };
 
-	try {
+	// Guard the array shapes: a record written by an older build may be short,
+	// and the input code indexes these without bounds checks.
+	merged.keys = defaults.keys.map( ( fallback, i ) => {
 
-		const raw = localStorage.getItem( STORAGE_KEY );
-		if ( raw === null ) return defaults;
+		const row = stored.keys?.[ i ];
+		return Array.isArray( row ) && row.length === 4 ? row : fallback;
 
-		const stored = JSON.parse( raw ) as Partial<SettingsData>;
-		const merged = { ...defaults, ...stored };
+	} );
+	merged.rotation = defaults.rotation.map( ( _, i ) => stored.rotation?.[ i ] ?? 0 );
+	merged.gamepadPlayer = [ stored.gamepadPlayer?.[ 0 ] ?? - 1, stored.gamepadPlayer?.[ 1 ] ?? - 1 ];
+	merged.gamepadMul = [ stored.gamepadMul?.[ 0 ] ?? 1.5, stored.gamepadMul?.[ 1 ] ?? 1.5 ];
 
-		// Guard the array shapes: a record written by an older build may be
-		// short, and the input code indexes these without bounds checks.
-		merged.keys = defaults.keys.map( ( fallback, i ) => {
-
-			const row = stored.keys?.[ i ];
-			return Array.isArray( row ) && row.length === 4 ? row : fallback;
-
-		} );
-		merged.rotation = defaults.rotation.map( ( _, i ) => stored.rotation?.[ i ] ?? 0 );
-		merged.gamepadPlayer = [ stored.gamepadPlayer?.[ 0 ] ?? - 1, stored.gamepadPlayer?.[ 1 ] ?? - 1 ];
-		merged.gamepadMul = [ stored.gamepadMul?.[ 0 ] ?? 1.5, stored.gamepadMul?.[ 1 ] ?? 1.5 ];
-
-		return merged;
-
-	} catch {
-
-		return defaults;
-
-	}
+	return merged;
 
 }
 
 /** `save_rc()`. Silently gives up when storage is unavailable or full. */
 export function saveSettings( settings: SettingsData ): void {
 
-	try {
-
-		localStorage.setItem( STORAGE_KEY, JSON.stringify( settings ) );
-
-	} catch {
-
-		// Private browsing, quota exhausted — progress is simply not kept.
-
-	}
+	writeJson( STORAGE_KEY, settings );
 
 }

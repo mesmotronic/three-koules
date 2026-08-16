@@ -102,6 +102,9 @@ export class Playfield extends Group {
 	private readonly flashColor = new Color( 0xbcd8ff );
 	private flash = 0;
 
+	/** The key light's shadow, redrawn only when something has moved. */
+	private keyShadow: DirectionalLight[ 'shadow' ] | null = null;
+
 	constructor() {
 
 		super();
@@ -187,6 +190,16 @@ export class Playfield extends Group {
 		key.shadow.bias = - 0.0008;
 		key.shadow.normalBias = 2;
 
+		// Redrawn on demand rather than automatically. The light is orthographic
+		// and welded to the sector, so the map depends on where the objects are
+		// and on nothing else — least of all on which camera is looking. Three
+		// tracks staleness per camera, so left on automatic it would redraw the
+		// whole 2048 square map once for every split-screen viewport. Asking for
+		// it once a frame instead lets the first viewport draw it and the rest
+		// share it, and lets a paused game skip the pass altogether.
+		key.shadow.autoUpdate = false;
+		this.keyShadow = key.shadow;
+
 		this.add( key );
 		this.add( key.target );
 
@@ -201,6 +214,20 @@ export class Playfield extends Group {
 		const centre = new PointLight( 0x89b6ff, 26000, 0, 2 );
 		centre.position.set( 0, 0, 210 );
 		this.add( centre );
+
+	}
+
+	/**
+	 * Marks the shadow map stale.
+	 *
+	 * Called once per rendered frame while anything is moving — objects are
+	 * interpolated between ticks, so a map refreshed at the tick rate would
+	 * visibly trail them. The first viewport drawn redraws it; the rest reuse
+	 * it, which is the whole point.
+	 */
+	invalidateShadows(): void {
+
+		if ( this.keyShadow !== null ) this.keyShadow.needsUpdate = true;
 
 	}
 

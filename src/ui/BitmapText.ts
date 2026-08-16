@@ -149,6 +149,25 @@ export function setBitmapText( element: HTMLElement, text: string, color?: strin
 }
 
 /**
+ * Redraws an element in whatever colour CSS now gives it.
+ *
+ * The colour is baked into the bitmap, so a class change that would recolour
+ * ordinary text does nothing on its own — and {@link setBitmapText} returns
+ * early when the string and scale are unchanged, so it will not notice either.
+ * Calling this after a class change lets a widget keep its colours in the
+ * stylesheet instead of naming palette tokens in script.
+ */
+export function repaintBitmapText( element: HTMLElement ): void {
+
+	const text = element.dataset.text;
+	if ( text === undefined ) return;
+
+	delete element.dataset.color;
+	setBitmapText( element, text, getComputedStyle( element ).color );
+
+}
+
+/**
  * The spinner arrows from `draw_menu()`, as five drawn lines each.
  *
  * These were never glyphs — the original ruled them with `Line()` on a seven

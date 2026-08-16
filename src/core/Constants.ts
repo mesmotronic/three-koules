@@ -134,9 +134,6 @@ export const enum ViewMode {
 	COCKPIT = 3
 }
 
-/** Modes that track a ship, and so only make sense with one player. */
-export const FOLLOWING_VIEWS: readonly ViewMode[] = [ ViewMode.CHASE, ViewMode.COCKPIT ];
-
 export const VIEW_LABELS: Readonly<Record<ViewMode, string>> = {
 	[ ViewMode.TOP ]: 'TOP',
 	[ ViewMode.ANGLED ]: 'ANGLED',

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import { CP437 } from '../core/Font8x8.js';
-import { setBitmapText } from './BitmapText.js';
+import { repaintBitmapText, setBitmapText } from './BitmapText.js';
 
 /**
  * The sound switch, sat in the corner of the screen.
@@ -22,7 +22,6 @@ export class SoundButton {
 	private readonly glyph: HTMLElement;
 	private muted = true;
 	private waiting = false;
-	private painted = '';
 
 	/**
 	 * @param root - The button element.
@@ -43,45 +42,25 @@ export class SoundButton {
 		this.root.append( this.glyph );
 
 		this.root.addEventListener( 'click', () => onToggle( this.waiting ) );
-		this.paint();
 
-	}
-
-	/** Repaints after a scale change, since the glyph is a bitmap. */
-	rescale(): void {
-
-		this.painted = '';
-		this.paint();
+		// CP437 has a pair of beamed quavers at 0x0E, so the icon comes from the
+		// same font as everything else rather than from an SVG. The stylesheet
+		// picks its colour, as it does for the strike and the pulse.
+		setBitmapText( this.glyph, String.fromCharCode( CP437.NOTES ) );
 
 	}
 
 	/**
-	 * Draws the icon in the colour the current state calls for.
-	 *
-	 * The colour is baked into the bitmap, so a CSS class change cannot
-	 * recolour it the way it would ordinary text — the glyph has to be redrawn.
-	 * CP437 has a pair of beamed quavers at 0x0E, so the icon comes from the
-	 * same font as everything else rather than from an SVG.
+	 * @param wanted - The player's sound setting.
+	 * @param running - Whether the audio context has been let out of the
+	 * browser's gesture requirement yet.
 	 */
-	private paint(): void {
+	update( wanted: boolean, running: boolean ): void {
 
-		const style = getComputedStyle( document.documentElement );
-		const token = this.muted ? '--koules-select' : '--koules-text';
-		const color = style.getPropertyValue( token ).trim() || '#ffffff';
-
-		if ( color === this.painted ) return;
-		this.painted = color;
-
-		setBitmapText( this.glyph, String.fromCharCode( CP437.NOTES ), color );
-
-	}
-
-	/**
-	 * @param audible - Whether sound would actually be heard right now.
-	 * @param blocked - Whether the only obstacle is the browser waiting for a
-	 * gesture, in which case the button invites one.
-	 */
-	update( audible: boolean, blocked: boolean ): void {
+		// Sound is only heard when it is both switched on and unblocked; the
+		// button invites a gesture when that is the only thing missing.
+		const audible = wanted && running;
+		const blocked = wanted && ! running;
 
 		if ( audible === ! this.muted && blocked === this.waiting ) return;
 
@@ -90,7 +69,10 @@ export class SoundButton {
 
 		this.root.classList.toggle( 'muted', this.muted );
 		this.root.classList.toggle( 'waiting', blocked );
-		this.paint();
+
+		// The class change alone cannot recolour a baked bitmap.
+		repaintBitmapText( this.glyph );
+
 		this.root.setAttribute( 'aria-pressed', String( audible ) );
 		this.root.setAttribute( 'aria-label', audible ? 'Sound on' : 'Sound off' );
 		this.root.title = blocked ? 'Click to enable sound' : ( audible ? 'Sound on' : 'Sound off' );
