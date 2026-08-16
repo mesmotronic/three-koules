@@ -757,6 +757,13 @@ export class Menu {
 
 	}
 
+	/** Repaints the rows, for a setting changed from outside the menu. */
+	refresh(): void {
+
+		if ( this.visible ) this.render();
+
+	}
+
 	/** Repaints everything at a new bitmap scale. */
 	rescale(): void {
 

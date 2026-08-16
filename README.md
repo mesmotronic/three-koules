@@ -158,8 +158,12 @@ point penalty — so a run is taken to end when the player leaves it, however
 that happens. Deathmatch keeps its own table.
 
 **No start button.** The game goes straight into its opening crawl. Browsers
-will not start an audio context without a gesture, so the first few seconds are
-silent until the player touches a key, a pad or the screen.
+will not start an audio context without a gesture, so there is a sound switch
+in the corner of the screen: it shows struck through while nothing would be
+heard, and pulses while the only thing in the way is a click. It is not a
+second setting — it reads and writes the same preference the menu does. Any
+other input unblocks the context too, so the switch is a way of noticing rather
+than the only way through.
 
 **Particles have depth.** They did not before: every point sat at z = 0, which
 is invisible looking straight down and looks like wet paper from anywhere else.

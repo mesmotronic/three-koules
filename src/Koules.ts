@@ -38,6 +38,7 @@ import { createBloomPipeline, type BloomPipeline } from './postprocessing/BloomP
 import { HelpLabels, type Project } from './ui/HelpLabels.js';
 import { Hud } from './ui/Hud.js';
 import { Menu } from './ui/Menu.js';
+import { SoundButton } from './ui/SoundButton.js';
 import { ViewSelector } from './ui/ViewSelector.js';
 import { briefings, introCrawl, outro2Crawl } from './misc/TextData.js';
 import { bitmapLineHeight, paintStaticText, setBitmapText, updateBitmapScale } from './ui/BitmapText.js';
@@ -87,6 +88,7 @@ export class Koules {
 	private readonly hud: Hud;
 	private readonly labels: HelpLabels;
 	private readonly viewSelector: ViewSelector;
+	private readonly soundButton: SoundButton;
 
 	private readonly playfieldEl: HTMLElement;
 	private readonly bannerEl: HTMLElement;
@@ -173,6 +175,8 @@ export class Koules {
 
 		this.hud = new Hud( required( 'hud-level' ), required( 'hud-players' ) );
 		this.labels = new HelpLabels( required( 'labels' ) );
+		this.soundButton = new SoundButton( required( 'sound' ), blocked => this.toggleSound( blocked ) );
+
 		this.viewSelector = new ViewSelector( required( 'views' ), mode => {
 
 			// `updateCamera` is the only thing that moves the director, so this
@@ -269,6 +273,10 @@ export class Koules {
 		game.plan.maxLevel = settings.maxLevel;
 
 		this.sound.enabled = settings.sound;
+
+		// `draw_menu()` silenced the game whenever the menu was up, so a change
+		// made mid-game takes effect and one made in the menu does not.
+		game.sound = game.gamemode === GameMode.GAME && settings.sound;
 		this.bloom?.setEnabled( settings.bloom );
 
 
@@ -319,6 +327,26 @@ export class Koules {
 
 	}
 
+
+	/**
+	 * The sound switch, and the browser's gesture requirement with it.
+	 *
+	 * A blocked context is not the same as sound being off, so a click on a
+	 * button that was asking to be unblocked turns sound on rather than
+	 * toggling a preference the player never set.
+	 *
+	 * @param wasBlocked - What the button was showing when it was clicked.
+	 */
+	private toggleSound( wasBlocked: boolean ): void {
+
+		this.sound.resume();
+		this.settings.sound = wasBlocked ? true : ! this.settings.sound;
+
+		this.applySettings();
+		this.persist();
+		this.menu.refresh();
+
+	}
 
 	/** Opens or closes the pause screen. */
 	private setPaused( paused: boolean ): void {
@@ -821,6 +849,7 @@ export class Koules {
 			paintStaticText();
 			this.menu.rescale();
 			this.viewSelector?.rescale();
+			this.soundButton?.rescale();
 
 		}
 
@@ -919,6 +948,10 @@ export class Koules {
 		this.particles.update( game.particles, this.paused ? 1 : alpha );
 
 		this.hud.update( game );
+		this.soundButton.update(
+			this.settings.sound && this.sound.isRunning,
+			this.settings.sound && ! this.sound.isRunning
+		);
 		this.viewSelector.visible = game.gamemode === GameMode.GAME && this.phase === 'live';
 		// The annotations are placed against one projection, so they are only
 		// offered when one camera covers the canvas.

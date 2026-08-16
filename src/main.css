@@ -389,6 +389,77 @@ body {
 	letter-spacing: 0.08em;
 }
 
+/* -------------------------------------------------------- sound switch */
+
+/*
+ * Always reachable, including over the crawl, so it is fixed to the viewport
+ * rather than to the sector.
+ */
+#sound {
+	position: fixed;
+	top: 14px;
+	right: 14px;
+	z-index: 6;
+	appearance: none;
+	background: transparent;
+	color: var(--koules-text);
+	border: 1px solid transparent;
+	/* Comfortably tappable, whatever size the glyph is drawn at. */
+	min-width: 44px;
+	min-height: 44px;
+	display: grid;
+	place-items: center;
+	cursor: pointer;
+	opacity: 0.75;
+	transition: opacity 0.2s ease, border-color 0.2s ease;
+}
+
+#sound:hover,
+#sound:focus-visible {
+	opacity: 1;
+	border-color: var(--koules-select);
+	outline: none;
+}
+
+#sound.muted {
+	color: var(--koules-select);
+	opacity: 0.55;
+}
+
+/* Struck through when nothing would be heard. */
+#sound.muted::after {
+	content: "";
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	width: calc(12px * var(--bmp-scale));
+	height: calc(1px * var(--bmp-scale));
+	background: currentColor;
+	transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+/*
+ * Waiting on the browser's gesture requirement rather than on the player's
+ * preference, so it asks to be clicked.
+ */
+#sound.waiting {
+	opacity: 1;
+	animation: sound-waiting 1.8s ease-in-out infinite;
+}
+
+@keyframes sound-waiting {
+	0%, 100% { opacity: 0.45; }
+	50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+	#sound.waiting {
+		animation: none;
+	}
+
+}
+
 /* ------------------------------------------------------- virtual stick */
 
 /*

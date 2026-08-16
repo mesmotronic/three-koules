@@ -93,5 +93,7 @@ export function glyphPixel( code: number, x: number, y: number ): boolean {
 /** CP437 code points the interface borrows for symbols. */
 export const CP437 = {
 	/** A filled diamond, used as a life pip. */
-	DIAMOND: 0x04
+	DIAMOND: 0x04,
+	/** A pair of beamed quavers, used by the sound switch. */
+	NOTES: 0x0e
 } as const;

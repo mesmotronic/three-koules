@@ -69,6 +69,13 @@ export class SoundManager {
 
 	}
 
+	/** True once the browser has let the context start. */
+	get isRunning(): boolean {
+
+		return this.context?.state === 'running';
+
+	}
+
 	/** Browsers suspend new contexts until a gesture unlocks them. */
 	resume(): void {
 

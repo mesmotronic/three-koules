@@ -63,6 +63,12 @@
 
 	</div>
 
+	<!--
+		Sound switch. Sits outside the overlay because it is the one control
+		that has to be reachable at any moment, including during the crawl.
+	-->
+	<button id="sound" type="button" class="muted waiting" aria-pressed="false" aria-label="Sound off"></button>
+
 	<!-- Virtual stick: the anchor is wherever the player first touched. -->
 	<div id="stick" aria-hidden="true">
 		<div id="stick-base"></div>
