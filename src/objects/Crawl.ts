@@ -81,6 +81,11 @@ export class Crawl extends Mesh {
 
 	private positions: Float32Array;
 	private colors: Float32Array;
+
+	/** Kept so the update ranges can be set without a loose lookup. */
+	private positionAttribute!: BufferAttribute;
+	private colorAttribute!: BufferAttribute;
+
 	private capacity = 0;
 
 	constructor() {
@@ -108,12 +113,6 @@ export class Crawl extends Mesh {
 		this.renderOrder = 5;
 
 		this.grow( 2048 );
-
-	}
-
-	get isRunning(): boolean {
-
-		return this.running;
 
 	}
 
@@ -182,6 +181,9 @@ export class Crawl extends Mesh {
 		this.geometry.setAttribute( 'position', position );
 		this.geometry.setAttribute( 'color', color );
 
+		this.positionAttribute = position;
+		this.colorAttribute = color;
+
 	}
 
 	/**
@@ -215,9 +217,18 @@ export class Crawl extends Mesh {
 
 		}
 
-		this.geometry.setDrawRange( 0, Math.min( segments, this.capacity ) * VERTS_PER_SEGMENT );
-		this.geometry.getAttribute( 'position' ).needsUpdate = true;
-		this.geometry.getAttribute( 'color' ).needsUpdate = true;
+		const drawn = Math.min( segments, this.capacity ) * VERTS_PER_SEGMENT;
+		this.geometry.setDrawRange( 0, drawn );
+
+		// The buffers are sized to capacity but a frame uses a fraction of it,
+		// so only the part that changed is handed to the GPU.
+		for ( const attribute of [ this.positionAttribute, this.colorAttribute ] ) {
+
+			attribute.clearUpdateRanges();
+			attribute.addUpdateRange( 0, drawn * 3 );
+			attribute.needsUpdate = true;
+
+		}
 
 		return true;
 
@@ -314,7 +325,9 @@ export class Crawl extends Mesh {
 
 		let dx = x2 - x1;
 		let dy = y2 - y1;
-		const length = Math.hypot( dx, dy );
+		// `Math.hypot` is variadic and overflow-safe; neither matters here, and
+		// this runs for every stroke of every visible line.
+		const length = Math.sqrt( dx * dx + dy * dy );
 
 		if ( length < 1e-6 ) {
 

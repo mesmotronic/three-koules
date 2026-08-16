@@ -10,11 +10,9 @@
 	--koules-font: ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
 	--koules-text: #ffffff;
 	--koules-shadow: #000000;
-	--koules-dim: #0000a2;
 	--koules-select: #eb8282;
 	--koules-select-shadow: #590000;
 	--koules-arrow: #eb8282;
-	--koules-frame: #0000a2;
 }
 
 * {
@@ -31,8 +29,7 @@ a {
 h1,
 h2,
 p,
-ul,
-figure {
+ul {
 	margin: 0;
 }
 
@@ -329,9 +326,12 @@ body {
 	overflow: hidden;
 }
 
+/* Positioned entirely by transform from script, so a moving label composites
+   rather than re-running layout. */
 #labels .bmp {
 	position: absolute;
-	transform: translate(0, -50%);
+	left: 0;
+	top: 0;
 	pointer-events: none;
 }
 

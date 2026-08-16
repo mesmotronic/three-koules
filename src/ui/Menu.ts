@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: © 2026 Mesmotronic Limited
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-import { DIFFICULTIES, GameMode, GamePlanMode, MAX_ROCKETS } from '../core/Constants.js';
+import { DIFFICULTIES, GamePlanMode, MAX_ROCKETS } from '../core/Constants.js';
 import type { SettingsData } from '../core/Settings.js';
 import type { InputManager } from '../controls/InputManager.js';
 import type { Game } from '../game/Game.js';
@@ -250,11 +250,15 @@ export class Menu {
 
 	}
 
+	/**
+	 * Pushes a settings change through to the game.
+	 *
+	 * `onSettingsChanged` owns the whole settings-to-simulation mapping, so
+	 * nothing is copied across here; doing it twice only invites the two
+	 * copies to disagree.
+	 */
 	private changed(): void {
 
-		this.game.gameplan = this.settings.gameplan;
-		this.game.difficulty = this.settings.difficulty;
-		this.game.nrockets = this.settings.nrockets;
 		this.hooks.onSettingsChanged();
 		this.hooks.onPersist();
 
@@ -340,7 +344,6 @@ export class Menu {
 
 		}
 
-		this.game.rotation[ player ] = settings.rotation[ player ];
 		this.hooks.onPersist();
 		this.render();
 
@@ -672,19 +675,6 @@ export class Menu {
 
 	};
 
-	/** Keeps the simulation's copies of the settings in step. */
-	syncGame(): void {
-
-		const { game, settings } = this;
-
-		game.nrockets = settings.nrockets;
-		game.difficulty = settings.difficulty;
-		game.gameplan = settings.gameplan;
-		game.gamemode = GameMode.MENU;
-
-		for ( let i = 0; i < MAX_ROCKETS; i ++ ) game.rotation[ i ] = settings.rotation[ i ];
-
-	}
 
 }
 

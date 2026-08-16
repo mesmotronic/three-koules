@@ -76,8 +76,9 @@ export class ViewSelector {
 
 		if ( ! solo && FOLLOWING_VIEWS.includes( this.current ) ) {
 
-			this.choose( ViewMode.ANGLED );
-			return;
+			// Forced, not chosen: a two-player session must not overwrite the
+			// view the player picked for solo play.
+			this.current = ViewMode.ANGLED;
 
 		}
 
@@ -92,6 +93,7 @@ export class ViewSelector {
 
 	}
 
+	/** Records a deliberate choice, and tells the app to remember it. */
 	choose( mode: ViewMode ): void {
 
 		if ( ! this.allows( mode ) ) return;

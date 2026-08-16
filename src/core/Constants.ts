@@ -57,6 +57,16 @@ export const LUNATIC_RADIUS = EYE_RADIUS;
 export const SPRING_SIZE = 4 * BBALL_RADIUS;
 export const SPRING_STRENGTH = BBALL_RADIUS / 2;
 
+/**
+ * Playfield space to world space.
+ *
+ * The simulation keeps the original's screen coordinates: origin in a corner,
+ * y pointing down. The scene is centred on the origin with y pointing up, so
+ * everything that draws crosses this boundary and should cross it here.
+ */
+export const toWorldX = ( x: number ): number => x - GAME_WIDTH / 2;
+export const toWorldY = ( y: number ): number => GAME_HEIGHT / 2 - y;
+
 /** `radius()` from `koules.c`. */
 export function radiusOf( type: ObjectType ): number {
 

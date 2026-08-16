@@ -108,10 +108,6 @@ export class ObjectView extends Group {
 			this.appearance = appearance;
 			this.body.material = bodyMaterial( appearance );
 
-			// The boss is a squashed sphere, matching `draw_apple_bitmap`'s
-			// silhouette; everything else is round.
-			this.body.scale.set( isApple ? 1.06 : 1, isApple ? 0.94 : 1, isApple ? 1 : 1 );
-
 			this.setRing( isHole ? appearance : null );
 			this.setStalk( isApple );
 
@@ -253,16 +249,8 @@ export class ObjectView extends Group {
 	 * @param object - Simulation state for this slot.
 	 * @param index - Slot number, which also selects a player's colours.
 	 * @param alpha - Fraction through the current 25 Hz tick.
-	 * @param toWorldX - Playfield to world space on x.
-	 * @param toWorldY - Playfield to world space on y (the axis is flipped).
 	 */
-	update(
-		object: GameObject,
-		index: number,
-		alpha: number,
-		toWorldX: ( x: number ) => number,
-		toWorldY: ( y: number ) => number
-	): void {
+	update( object: GameObject, index: number, alpha: number ): void {
 
 		const appearance = object.live ? appearanceOf( object, index ) : null;
 
@@ -276,11 +264,7 @@ export class ObjectView extends Group {
 		this.visible = true;
 		this.configure( appearance, object, index );
 
-		const t = object.teleported ? 1 : alpha;
-		const gx = object.px + ( object.x - object.px ) * t;
-		const gy = object.py + ( object.y - object.py ) * t;
-
-		this.position.set( toWorldX( gx ), toWorldY( gy ), 0 );
+		this.position.set( object.worldX( alpha ), object.worldY( alpha ), 0 );
 		this.body.scale.setScalar( object.radius );
 
 		// Keep the boss's squash after the uniform scale above.
@@ -321,7 +305,7 @@ export class ObjectView extends Group {
 		// it: at 10 units out on a radius 14 hull, the surface is 9.8 up.
 		if ( this.eyes.length === 2 ) {
 
-			const rot = object.prot + ( object.rotation - object.prot ) * t;
+			const rot = object.rotationAt( alpha );
 			const surface = Math.sqrt( Math.max( 1, object.radius * object.radius - EYE_RADIUS1 * EYE_RADIUS1 ) );
 
 			for ( let e = 0; e < 2; e ++ ) {

@@ -14,16 +14,14 @@ import {
 
 import {
 	ControlType,
-	GAME_HEIGHT,
 	GAME_WIDTH,
 	GameMode,
-	MAX_ROCKETS,
 	ObjectType,
 	TICK_MS,
 	ViewMode
 } from './core/Constants.js';
 import { loadSettings, saveSettings, type SettingsData } from './core/Settings.js';
-import { CameraDirector } from './controls/CameraDirector.js';
+import { CameraDirector, TOP_FOV } from './controls/CameraDirector.js';
 import { InputManager } from './controls/InputManager.js';
 import { Game } from './game/Game.js';
 import { Crawl } from './objects/Crawl.js';
@@ -35,16 +33,13 @@ import { SpringField } from './objects/SpringField.js';
 import { Starfield } from './objects/Starfield.js';
 import { SoundManager } from './audio/SoundManager.js';
 import { createBloomPipeline, type BloomPipeline } from './postprocessing/BloomPipeline.js';
-import { HelpLabels } from './ui/HelpLabels.js';
+import { HelpLabels, type Project } from './ui/HelpLabels.js';
 import { Hud } from './ui/Hud.js';
 import { Menu } from './ui/Menu.js';
 import { ViewSelector } from './ui/ViewSelector.js';
 import { briefings, introCrawl, outro2Crawl } from './misc/TextData.js';
 import { bitmapLineHeight, paintStaticText, setBitmapText, updateBitmapScale } from './ui/BitmapText.js';
 import { applyTheme } from './ui/Theme.js';
-
-/** Vertical field of view. Wide enough to give depth, tight enough to read. */
-const FOV = 35;
 
 /** Gap above and below the status line, in CSS pixels. */
 const HUD_GAP = 10;
@@ -53,6 +48,9 @@ const HUD_GAP = 10;
 type Phase = 'idle' | 'crawl' | 'banner' | 'live';
 
 const _projected = new Vector3();
+
+/** Reused result of {@link Koules.project}; valid until the next call. */
+const _screen = { x: 0, y: 0 };
 
 /**
  * The Koules application: window, renderer, clock and state machine.
@@ -66,7 +64,7 @@ export class Koules {
 
 	private readonly renderer: WebGPURenderer;
 	private readonly scene = new Scene();
-	private readonly camera = new PerspectiveCamera( FOV, 1, 1, 6000 );
+	private readonly camera = new PerspectiveCamera( TOP_FOV, 1, 1, 6000 );
 
 	private readonly game = new Game();
 	private readonly input: InputManager;
@@ -126,6 +124,11 @@ export class Koules {
 	private readonly stickBaseEl: HTMLElement;
 	private readonly stickKnobEl: HTMLElement;
 
+	/**
+	 * Raised when the player quits, so the host can put its own chrome back.
+	 */
+	onQuit: () => void = () => {};
+
 	constructor( container: HTMLElement ) {
 
 		this.settings = loadSettings();
@@ -142,14 +145,6 @@ export class Koules {
 		// --- scene graph ----------------------------------------------------
 
 		this.scene.add( this.starfield, this.playfield, this.springs, this.particles, this.crawl, this.intro );
-
-		for ( let i = 0; i < this.game.objects.length; i ++ ) {
-
-			const view = new ObjectView();
-			this.views.push( view );
-			this.scene.add( view );
-
-		}
 
 		// --- overlay --------------------------------------------------------
 
@@ -171,8 +166,9 @@ export class Koules {
 		this.labels = new HelpLabels( required( 'labels' ) );
 		this.viewSelector = new ViewSelector( required( 'views' ), mode => {
 
+			// `updateCamera` is the only thing that moves the director, so this
+			// only has to record the intent.
 			this.settings.view = mode;
-			this.director.setMode( mode );
 			this.persist();
 
 		} );
@@ -192,7 +188,6 @@ export class Koules {
 
 		this.applySettings();
 		this.viewSelector.choose( this.settings.view );
-		this.menu.syncGame();
 
 		window.addEventListener( 'resize', this.onResize );
 
@@ -261,12 +256,9 @@ export class Koules {
 		game.plan.lastLevel = settings.lastLevel;
 		game.plan.maxLevel = settings.maxLevel;
 
-		for ( let i = 0; i < MAX_ROCKETS; i ++ ) game.rotation[ i ] = settings.rotation[ i ];
-
 		this.sound.enabled = settings.sound;
 		this.bloom?.setEnabled( settings.bloom );
 
-		this.director.driftEnabled = settings.cameraMotion;
 		this.viewSelector?.setSoloGame( settings.nrockets === 1 );
 
 	}
@@ -292,12 +284,16 @@ export class Koules {
 
 	}
 
-	/** `quit()`. A browser tab cannot close itself, so this drops to the gate. */
+	/**
+	 * `quit()`. A browser tab cannot close itself, so this shuts the game down
+	 * and tells the caller, which owns the start gate and knows how to re-arm
+	 * it. Reaching out and un-hiding the gate from here left a dead button.
+	 */
 	private quit(): void {
 
 		this.persist();
 		this.dispose();
-		document.getElementById( 'gate' )?.classList.remove( 'hidden' );
+		this.onQuit();
 
 	}
 
@@ -730,7 +726,7 @@ export class Koules {
 		this.renderer.setSize( width, height );
 
 		const aspect = width / height;
-		const tan = Math.tan( MathUtils.degToRad( FOV ) / 2 );
+		const tan = Math.tan( MathUtils.degToRad( TOP_FOV ) / 2 );
 
 		// Type steps in whole pixels, so settle its scale before measuring the
 		// status line that depends on it.
@@ -744,7 +740,11 @@ export class Koules {
 
 		}
 
-		const hud = bitmapLineHeight() * 2 + HUD_GAP * 2;
+		// Measured, not predicted: the scores wrap onto a third row with enough
+		// players, and a stylesheet change would otherwise silently mis-size
+		// the sector, the camera distance and the pointer mapping with it.
+		const measured = this.hudEl.getBoundingClientRect().height;
+		const hud = ( measured > 0 ? measured : bitmapLineHeight() * 2 ) + HUD_GAP * 2;
 		const padding = Math.round( Math.min( width, height ) * ( provisional < 700 ? 0.015 : 0.04 ) );
 
 		const size = Math.max( 160, Math.min( width - padding * 2, height - hud - padding * 2 ) );
@@ -803,18 +803,29 @@ export class Koules {
 		// From inside the ship you should not be able to see it.
 		const hidden = this.director.mode === ViewMode.COCKPIT ? 0 : - 1;
 
-		for ( let i = 0; i < this.views.length; i ++ ) {
+		// Views are made as the sector needs them. The object array is 255 long
+		// but a sector never holds more than thirty, and an unused view would
+		// still have its world matrix recomposed every frame.
+		const shown = inCrawl ? 0 : game.nobjects;
 
-			if ( inCrawl || i >= game.nobjects || i === hidden ) {
+		for ( let i = 0; i < shown; i ++ ) {
 
-				this.views[ i ].visible = false;
-				continue;
+			let view = this.views[ i ];
+
+			if ( view === undefined ) {
+
+				view = new ObjectView();
+				this.views[ i ] = view;
+				this.scene.add( view );
 
 			}
 
-			this.views[ i ].update( game.objects[ i ], i, alpha, toWorldX, toWorldY );
+			if ( i === hidden ) view.visible = false;
+			else view.update( game.objects[ i ], i, alpha );
 
 		}
+
+		for ( let i = shown; i < this.views.length; i ++ ) this.views[ i ].visible = false;
 
 		this.springs.visible = ! inCrawl;
 		if ( ! inCrawl ) this.springs.update( game.objects, game.nobjects, alpha );
@@ -854,25 +865,26 @@ export class Koules {
 
 	}
 
-	/** World point to pixels relative to the playfield overlay. */
-	private readonly project = ( x: number, y: number, z: number ): { x: number; y: number } | null => {
+	/**
+	 * World point to pixels relative to the playfield overlay.
+	 *
+	 * Writes into a shared scratch rather than returning a fresh object: with
+	 * help mode on this runs for every object and every tether, every frame.
+	 */
+	private readonly project: Project = ( x, y, z ) => {
 
 		_projected.set( x, y, z ).project( this.camera );
 
 		if ( _projected.z > 1 ) return null;
 
-		return {
-			x: ( _projected.x * 0.5 + 0.5 ) * this.viewWidth - this.rectLeft,
-			y: ( - _projected.y * 0.5 + 0.5 ) * this.viewHeight - this.rectTop
-		};
+		_screen.x = ( _projected.x * 0.5 + 0.5 ) * this.viewWidth - this.rectLeft;
+		_screen.y = ( - _projected.y * 0.5 + 0.5 ) * this.viewHeight - this.rectTop;
+
+		return _screen;
 
 	};
 
 }
-
-/** Playfield space has its origin in a corner and y pointing down. */
-const toWorldX = ( x: number ): number => x - GAME_WIDTH / 2;
-const toWorldY = ( y: number ): number => GAME_HEIGHT / 2 - y;
 
 function required( id: string ): HTMLElement {
 

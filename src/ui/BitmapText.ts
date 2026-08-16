@@ -102,11 +102,22 @@ function render( text: string, color: string, scale: number ): string {
  */
 export function setBitmapText( element: HTMLElement, text: string, color?: string ): void {
 
+	// Text and scale are checked first: reading a computed style forces the
+	// browser to resolve the style tree, and this is called for every score,
+	// life pip and help caption on every frame, almost always to do nothing.
+	const scale = String( _scale );
+
+	if ( element.dataset.text === text && element.dataset.scale === scale && color === undefined ) {
+
+		return;
+
+	}
+
 	// A detached element has no computed style to read, and the colour is baked
 	// into the bitmap, so painting one early gives black on black.
 	const resolved = color ?? ( element.isConnected ? getComputedStyle( element ).color : DEFAULT_COLOR );
 
-	if ( element.dataset.text === text && element.dataset.color === resolved && element.dataset.scale === String( _scale ) ) {
+	if ( element.dataset.text === text && element.dataset.color === resolved && element.dataset.scale === scale ) {
 
 		return;
 
@@ -114,7 +125,7 @@ export function setBitmapText( element: HTMLElement, text: string, color?: strin
 
 	element.dataset.text = text;
 	element.dataset.color = resolved;
-	element.dataset.scale = String( _scale );
+	element.dataset.scale = scale;
 
 	element.classList.add( 'bmp' );
 	element.setAttribute( 'aria-label', text );
@@ -250,13 +261,6 @@ export function paintStaticText( root: ParentNode = document ): void {
 export function releaseBitmapText( element: HTMLElement ): void {
 
 	_bound.delete( element );
-
-}
-
-/** Pixels per font pixel currently in use. */
-export function bitmapScale(): number {
-
-	return _scale;
 
 }
 

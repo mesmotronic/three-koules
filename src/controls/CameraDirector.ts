@@ -3,7 +3,7 @@
 
 import { Camera, MathUtils, PerspectiveCamera, Quaternion, Vector3 } from 'three/webgpu';
 
-import { GAME_HEIGHT, GAME_WIDTH, RAD, ViewMode } from '../core/Constants.js';
+import { GAME_HEIGHT, RAD, ViewMode, toWorldX, toWorldY } from '../core/Constants.js';
 import type { GameObject } from '../game/GameObject.js';
 
 /** Seconds a change of view takes to fly. */
@@ -34,8 +34,16 @@ interface Pose {
 	rotating: boolean;
 }
 
-const POSES: Readonly<Record<ViewMode, Pose>> = {
-	[ ViewMode.TOP ]: { fov: 35, rotating: false },
+/**
+ * The overhead field of view.
+ *
+ * The layout sizes the sector against this, and the director sets the camera
+ * from it, so the two have to be the same number rather than agree by luck.
+ */
+export const TOP_FOV = 35;
+
+export const POSES: Readonly<Record<ViewMode, Pose>> = {
+	[ ViewMode.TOP ]: { fov: TOP_FOV, rotating: false },
 	[ ViewMode.ANGLED ]: { fov: 42, rotating: false },
 	[ ViewMode.CHASE ]: { fov: 62, rotating: true },
 	[ ViewMode.COCKPIT ]: { fov: 78, rotating: true }
@@ -71,7 +79,7 @@ export class CameraDirector {
 	private transition = 0;
 	private readonly fromPosition = new Vector3();
 	private readonly fromQuaternion = new Quaternion();
-	private fromFov = 35;
+	private fromFov = TOP_FOV;
 
 	/** Smoothed ship heading the following modes track. */
 	private heading = Math.PI;
@@ -90,13 +98,6 @@ export class CameraDirector {
 	get headingOffset(): number {
 
 		return POSES[ this.mode ].rotating ? this.heading - Math.PI : 0;
-
-	}
-
-	/** True while the view is square to the screen, as the overlay assumes. */
-	get isOverhead(): boolean {
-
-		return this.mode === ViewMode.TOP;
 
 	}
 
@@ -176,7 +177,7 @@ export class CameraDirector {
 
 		if ( player === null || ! player.live ) return;
 
-		_target.set( player.x - GAME_WIDTH / 2, GAME_HEIGHT / 2 - player.y, 0 );
+		_target.set( toWorldX( player.x ), toWorldY( player.y ), 0 );
 
 		if ( ! this.hasFocus ) {
 

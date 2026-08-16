@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: © 2026 Mesmotronic Limited
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-import { back, ball, paletteHex } from '../core/Palette.js';
+import { ball, paletteHex } from '../core/Palette.js';
 
 /**
  * Publishes the game's own palette entries to CSS.
@@ -29,13 +29,5 @@ export function applyTheme( root: HTMLElement = document.documentElement ): void
 	// The spinner arrows beside the player and level counters share the bright
 	// half of that red ramp.
 	set( '--koules-arrow', paletteHex( ball( 2 ) ) );
-
-	// `drawbackground()` ruled a line under the playfield in `back(16)`; the
-	// sector frame takes its colour from the same ramp.
-	set( '--koules-frame', paletteHex( back( 20 ) ) );
-
-	// Dim chrome that has no counterpart in the original, kept in the
-	// background ramp so it belongs to the same family.
-	set( '--koules-dim', paletteHex( back( 26 ) ) );
 
 }

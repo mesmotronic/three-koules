@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: © 2026 Mesmotronic Limited
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-import { Letter, ObjectType } from '../core/Constants.js';
+import { Letter, ObjectType, toWorldX, toWorldY } from '../core/Constants.js';
 
 /**
  * The `Object` struct from `koules.h`.
@@ -83,6 +83,36 @@ export class GameObject {
 
 	/** True when the renderer should snap rather than interpolate. */
 	teleported = true;
+
+	/**
+	 * World x at a fraction through the current tick.
+	 *
+	 * The renderer runs faster than the 25 Hz simulation, so everything drawn
+	 * sits between two ticks. Teleported objects snap instead, or a respawn
+	 * would smear the ship across the sector.
+	 */
+	worldX( alpha: number ): number {
+
+		const t = this.teleported ? 1 : alpha;
+		return toWorldX( this.px + ( this.x - this.px ) * t );
+
+	}
+
+	/** World y at a fraction through the current tick. */
+	worldY( alpha: number ): number {
+
+		const t = this.teleported ? 1 : alpha;
+		return toWorldY( this.py + ( this.y - this.py ) * t );
+
+	}
+
+	/** Facing at a fraction through the current tick. */
+	rotationAt( alpha: number ): number {
+
+		const t = this.teleported ? 1 : alpha;
+		return this.prot + ( this.rotation - this.prot ) * t;
+
+	}
 
 	/** Records the current pose as the interpolation origin for next tick. */
 	snapshot(): void {

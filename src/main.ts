@@ -51,12 +51,16 @@ async function boot(): Promise<void> {
 
 	}
 
+	// The gate belongs to the page, not to the game: quitting brings it back,
+	// so the button has to stay armed rather than firing once.
+	koules.onQuit = () => gate!.classList.remove( 'hidden' );
+
 	button!.addEventListener( 'click', () => {
 
 		gate!.classList.add( 'hidden' );
 		koules.start();
 
-	}, { once: true } );
+	} );
 
 	button!.removeAttribute( 'disabled' );
 

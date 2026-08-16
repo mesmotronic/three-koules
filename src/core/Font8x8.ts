@@ -93,8 +93,5 @@ export function glyphPixel( code: number, x: number, y: number ): boolean {
 /** CP437 code points the interface borrows for symbols. */
 export const CP437 = {
 	/** A filled diamond, used as a life pip. */
-	DIAMOND: 0x04,
-	/** Solid triangles, used to mark the selected menu row. */
-	RIGHT: 0x10,
-	LEFT: 0x11
+	DIAMOND: 0x04
 } as const;

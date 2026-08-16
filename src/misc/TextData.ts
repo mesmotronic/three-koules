@@ -24,11 +24,6 @@ export const D2_LINE = 46;
 /** Cue: the B_BALL rises from the bottom of the screen. */
 export const B_LINE = 57;
 
-/** Cue in `text2`: the ships begin their departure burn. */
-export const CONT_LINE = 16;
-/** Cue in `text2`: the ships' eyes widen. */
-export const UDIV_LINE = 10;
-
 /** The opening crawl. */
 export const introCrawl: readonly string[] = [
 	'Somewhere in the galaxy',

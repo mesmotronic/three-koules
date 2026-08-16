@@ -80,9 +80,6 @@ export class Game {
 		type: ControlType.KEYBOARD, jx: 0, jy: 0, mx: 0, my: 0, mask: 0, heading: 0
 	} ) );
 
-	/** `rotation[]` — per player, asteroids steering instead of eight way. */
-	readonly rotation: number[] = new Array( MAX_ROCKETS ).fill( 0 );
-
 	nobjects = 8;
 	nrockets = 1;
 

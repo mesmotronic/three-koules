@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import { PostProcessing, type Camera, type Renderer, type Scene } from 'three/webgpu';
-import { float, mrt, output, pass, uniform } from 'three/tsl';
+import { float, mrt, output, pass } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 
 /** The bloom pass plus the knob that switches it off. */
@@ -34,17 +34,27 @@ export function createBloomPipeline( renderer: Renderer, scene: Scene, camera: C
 	const outputPass = scenePass.getTextureNode();
 	const bloomIntensityPass = scenePass.getTextureNode( 'bloomIntensity' );
 
-	const enabled = uniform( 1 );
-	const bloomPass = bloom( outputPass.mul( bloomIntensityPass ).mul( enabled ), 0.7, 0.32, 0.05 );
+	const bloomPass = bloom( outputPass.mul( bloomIntensityPass ), 0.7, 0.32, 0.05 );
+
+	// Two finished graphs, swapped on demand. Zeroing the bloom's input would
+	// leave its whole blur pyramid rendering every frame to produce black.
+	const withBloom = outputPass.add( bloomPass ).renderOutput();
+	const withoutBloom = outputPass.renderOutput();
 
 	const postProcessing = new PostProcessing( renderer );
-	postProcessing.outputNode = outputPass.add( bloomPass ).renderOutput();
+	postProcessing.outputNode = withBloom;
+
+	let current = true;
 
 	return {
 		postProcessing,
 		setEnabled( value: boolean ): void {
 
-			enabled.value = value ? 1 : 0;
+			if ( value === current ) return;
+
+			current = value;
+			postProcessing.outputNode = value ? withBloom : withoutBloom;
+			postProcessing.needsUpdate = true;
 
 		}
 	};

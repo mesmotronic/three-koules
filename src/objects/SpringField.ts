@@ -4,7 +4,6 @@
 
 import { BoxGeometry, Group, Mesh, MeshBasicNodeMaterial } from 'three/webgpu';
 
-import { GAME_HEIGHT, GAME_WIDTH } from '../core/Constants.js';
 import type { GameObject } from '../game/GameObject.js';
 import { setBloom } from '../materials/BodyMaterials.js';
 
@@ -53,17 +52,14 @@ export class SpringField extends Group {
 			const to = objects[ from.lineto ];
 			if ( ! to.live ) continue;
 
-			const ta = from.teleported ? 1 : alpha;
-			const tb = to.teleported ? 1 : alpha;
-
-			const x1 = ( from.px + ( from.x - from.px ) * ta ) - GAME_WIDTH / 2;
-			const y1 = GAME_HEIGHT / 2 - ( from.py + ( from.y - from.py ) * ta );
-			const x2 = ( to.px + ( to.x - to.px ) * tb ) - GAME_WIDTH / 2;
-			const y2 = GAME_HEIGHT / 2 - ( to.py + ( to.y - to.py ) * tb );
+			const x1 = from.worldX( alpha );
+			const y1 = from.worldY( alpha );
+			const x2 = to.worldX( alpha );
+			const y2 = to.worldY( alpha );
 
 			const dx = x2 - x1;
 			const dy = y2 - y1;
-			const length = Math.hypot( dx, dy );
+			const length = Math.sqrt( dx * dx + dy * dy );
 			if ( length < 0.001 ) continue;
 
 			const bar = this.barAt( used ++ );

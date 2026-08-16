@@ -22,10 +22,17 @@ export class Hud {
 	private readonly rows: HTMLElement[] = [];
 	private lastSignature = '';
 
+	/** Last values drawn per row, so a still scoreboard costs nothing. */
+	private readonly drawn: { lives: number; score: number }[] = [];
+
 	constructor(
 		private readonly levelEl: HTMLElement,
 		private readonly playersEl: HTMLElement
-	) {}
+	) {
+
+		this.levelEl.classList.add( 'shadowed' );
+
+	}
 
 	update( game: Game ): void {
 
@@ -33,7 +40,6 @@ export class Hud {
 		const playing = game.gamemode === GameMode.GAME;
 
 		setBitmapText( this.levelEl, coop && playing ? `SECTOR ${ game.plan.level + 1 }` : '' );
-		this.levelEl.classList.add( 'shadowed' );
 
 		// Rebuild only when the player count changes; the numbers are patched
 		// in place every frame.
@@ -51,6 +57,7 @@ export class Hud {
 
 			this.playersEl.textContent = '';
 			this.rows.length = 0;
+			this.drawn.length = 0;
 
 			for ( let i = 0; i < game.nrockets; i ++ ) {
 
@@ -70,6 +77,7 @@ export class Hud {
 				row.append( pip, lives, score );
 				this.playersEl.append( row );
 				this.rows.push( row );
+				this.drawn.push( { lives: - 1, score: - 1 } );
 
 			}
 
@@ -82,6 +90,14 @@ export class Hud {
 			const alive = object.live1 > 0 || object.type === ObjectType.CREATOR;
 
 			row.classList.toggle( 'dead', ! alive );
+
+			// Scores and lives change every few seconds, not every frame, so
+			// the strings are only built when one of them actually moves.
+			const previous = this.drawn[ i ];
+			if ( previous.lives === object.live1 && previous.score === object.score ) continue;
+
+			previous.lives = object.live1;
+			previous.score = object.score;
 
 			// CP437 entry 4 is a filled diamond, which is what the font offers
 			// in place of the original's bare numeral count.

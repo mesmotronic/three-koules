@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: © 2026 Mesmotronic Limited
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-import { GAME_HEIGHT, GAME_WIDTH, MAX_POINT } from '../core/Constants.js';
+import { GAME_HEIGHT, GAME_WIDTH, MAX_POINT, toWorldX, toWorldY } from '../core/Constants.js';
 import { PALETTE_LINEAR } from '../core/Palette.js';
 
 /**
@@ -128,8 +128,11 @@ export class ParticleSystem {
 	/**
 	 * Writes interpolated points into instanced attribute buffers.
 	 *
+	 * Converts to world space on the way out rather than leaving the caller to
+	 * walk all four thousand slots a second time for the sake of two offsets.
+	 *
 	 * @param alpha - Fraction through the current simulation tick.
-	 * @param positions - vec3 per point, z left at zero.
+	 * @param positions - vec3 per point, in world space.
 	 * @param colors - vec3 per point, pre-multiplied by the fade.
 	 * @param sizes - float per point; zero hides a dead slot.
 	 * @returns The highest slot index in use, so the draw can be trimmed.
@@ -152,8 +155,8 @@ export class ParticleSystem {
 
 			const i3 = i * 3;
 
-			positions[ i3 + 0 ] = px[ i ] + ( x[ i ] - px[ i ] ) * alpha;
-			positions[ i3 + 1 ] = py[ i ] + ( y[ i ] - py[ i ] ) * alpha;
+			positions[ i3 + 0 ] = toWorldX( px[ i ] + ( x[ i ] - px[ i ] ) * alpha );
+			positions[ i3 + 1 ] = toWorldY( py[ i ] + ( y[ i ] - py[ i ] ) * alpha );
 			positions[ i3 + 2 ] = pz[ i ] + ( z[ i ] - pz[ i ] ) * alpha;
 
 			// Ease the last fifth of a point's life out rather than letting it

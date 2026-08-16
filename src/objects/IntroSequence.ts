@@ -13,7 +13,9 @@ import {
 	GAME_WIDTH,
 	RAD,
 	ROCKET_RADIUS,
-	Sample
+	Sample,
+	toWorldX,
+	toWorldY
 } from '../core/Constants.js';
 import { ball as ballRamp } from '../core/Palette.js';
 import { randMod } from '../core/Random.js';
@@ -31,9 +33,6 @@ const RING_COUNT = 6;
 
 /** Which bitmap each ring used: red koules, then a green and a blue deserter. */
 const RING_APPEARANCE: readonly Appearance[] = [ 'ball', 'accel', 'gumm' ];
-
-const toWorldX = ( x: number ): number => x - GAME_WIDTH / 2;
-const toWorldY = ( y: number ): number => GAME_HEIGHT / 2 - y;
 
 /**
  * The choreography that plays over the opening crawl, from `starwars()`.

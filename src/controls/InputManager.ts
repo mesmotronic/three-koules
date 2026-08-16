@@ -5,6 +5,8 @@
 
 import { Xpad } from '@mesmotronic/xpad';
 
+import { GAME_HEIGHT, GAME_WIDTH } from '../core/Constants.js';
+
 /**
  * Keyboard, pointer and gamepad polling.
  *
@@ -40,7 +42,6 @@ export class InputManager {
 	/** Pointer position in playfield units, and whether it is over the field. */
 	pointerX = 0;
 	pointerY = 0;
-	pointerInside = false;
 	pointerDown = false;
 
 	/**
@@ -126,13 +127,6 @@ export class InputManager {
 	wasPressed( code: string ): boolean {
 
 		return this.edges.has( code );
-
-	}
-
-	/** `Pressed()` — is anything at all held? */
-	get anyHeld(): boolean {
-
-		return this.held.size > 0 || this.pointerDown;
 
 	}
 
@@ -263,14 +257,9 @@ export class InputManager {
 
 		}
 
-		const x = ( ( event.clientX - this.rectLeft ) / this.rectSize );
-		const y = ( ( event.clientY - this.rectTop ) / this.rectSize );
-
-		this.pointerInside = x >= 0 && x <= 1 && y >= 0 && y <= 1;
-
 		// Reported in playfield units, matching `MouseX() * DIV`.
-		this.pointerX = x * 640;
-		this.pointerY = y * 640;
+		this.pointerX = ( ( event.clientX - this.rectLeft ) / this.rectSize ) * GAME_WIDTH;
+		this.pointerY = ( ( event.clientY - this.rectTop ) / this.rectSize ) * GAME_HEIGHT;
 
 	};
 
@@ -331,13 +320,6 @@ export class InputManager {
 		}
 
 		this.stickActive = true;
-
-	}
-
-	/** True when the device reports a touchscreen. */
-	get hasTouch(): boolean {
-
-		return navigator.maxTouchPoints > 0;
 
 	}
 

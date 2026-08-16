@@ -10,7 +10,7 @@ import {
 } from 'three/webgpu';
 import { float, instancedBufferAttribute, positionView, shapeCircle, uniform, viewportSize } from 'three/tsl';
 
-import { GAME_HEIGHT, GAME_WIDTH, MAX_POINT } from '../core/Constants.js';
+import { MAX_POINT } from '../core/Constants.js';
 import type { ParticleSystem } from '../game/ParticleSystem.js';
 import { setBloom } from '../materials/BodyMaterials.js';
 
@@ -89,7 +89,8 @@ export class ParticleField extends Sprite {
 		this.sizes = sizes;
 		this.pixelScale = pixelScale;
 
-		this.count = MAX_POINT;
+		// Set per frame from the live prefix; nothing is alive to begin with.
+		this.count = 0;
 		this.frustumCulled = false;
 		this.renderOrder = 2;
 
@@ -106,28 +107,34 @@ export class ParticleField extends Sprite {
 
 	}
 
-	/** Pulls the simulation's points into the instance buffers. */
+	/**
+	 * Pulls the simulation's points into the instance buffers.
+	 *
+	 * The pool is a ring, so the live points are always a prefix of it up to
+	 * the high-water mark. Drawing and uploading only that prefix is the
+	 * difference between a hundred kilobytes a frame and almost nothing when
+	 * the field is quiet.
+	 */
 	update( particles: ParticleSystem, alpha: number ): void {
 
-		const positions = this.positions.array as Float32Array;
-		const colors = this.colors.array as Float32Array;
-		const sizes = this.sizes.array as Float32Array;
+		const live = particles.writeInstances(
+			alpha,
+			this.positions.array as Float32Array,
+			this.colors.array as Float32Array,
+			this.sizes.array as Float32Array
+		);
 
-		particles.writeInstances( alpha, positions, colors, sizes );
+		this.count = live;
 
-		// Playfield space has y pointing down and the origin in a corner; z is
-		// already in world terms and passes straight through.
-		for ( let i = 0; i < MAX_POINT; i ++ ) {
+		if ( live === 0 ) return;
 
-			const i3 = i * 3;
-			positions[ i3 + 0 ] -= GAME_WIDTH / 2;
-			positions[ i3 + 1 ] = GAME_HEIGHT / 2 - positions[ i3 + 1 ];
+		for ( const attribute of [ this.positions, this.colors, this.sizes ] ) {
+
+			attribute.clearUpdateRanges();
+			attribute.addUpdateRange( 0, live * attribute.itemSize );
+			attribute.needsUpdate = true;
 
 		}
-
-		this.positions.needsUpdate = true;
-		this.colors.needsUpdate = true;
-		this.sizes.needsUpdate = true;
 
 	}
 

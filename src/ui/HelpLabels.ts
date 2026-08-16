@@ -2,7 +2,14 @@
 // SPDX-FileCopyrightText: © 2026 Mesmotronic Limited
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-import { GAME_HEIGHT, GAME_WIDTH, Letter, ObjectType } from '../core/Constants.js';
+import { GAME_WIDTH, Letter, ObjectType, toWorldX, toWorldY } from '../core/Constants.js';
+
+/**
+ * Projects a world point to overlay pixels, or null if it is behind the camera.
+ *
+ * The returned point is a shared scratch and is only valid until the next call.
+ */
+export type Project = ( x: number, y: number, z: number ) => { x: number; y: number } | null;
 import type { Game } from '../game/Game.js';
 import type { GameObject } from '../game/GameObject.js';
 import { HELP_TEXT } from '../misc/TextData.js';
@@ -59,11 +66,7 @@ export class HelpLabels {
 	 * point is behind the camera.
 	 * @param size - Side of the projected playfield square, in pixels.
 	 */
-	update(
-		game: Game,
-		project: ( x: number, y: number, z: number ) => { x: number; y: number } | null,
-		size: number
-	): void {
+	update( game: Game, project: Project, size: number ): void {
 
 		if ( ! game.helpmode ) {
 
@@ -82,7 +85,7 @@ export class HelpLabels {
 			const caption = captionFor( object );
 			if ( caption === null ) continue;
 
-			const point = project( object.x - GAME_WIDTH / 2, GAME_HEIGHT / 2 - object.y, 0 );
+			const point = project( toWorldX( object.x ), toWorldY( object.y ), 0 );
 
 			if ( point === null ) continue;
 			if ( point.x < 0 || point.y < 0 || point.x > size || point.y > size ) continue;
@@ -90,9 +93,11 @@ export class HelpLabels {
 			const label = this.labelAt( used ++ );
 			setBitmapText( label, caption );
 			label.style.display = '';
-			// Offset past the object's silhouette, as the original did.
-			label.style.left = `${ point.x + ( object.radius / GAME_WIDTH ) * size + 4 }px`;
-			label.style.top = `${ point.y }px`;
+			// Offset past the object's silhouette, as the original did. One
+			// transform rather than two offsets, so a moving label costs a
+			// single composited write instead of re-running layout.
+			const x = point.x + ( object.radius / GAME_WIDTH ) * size + 4;
+			label.style.transform = `translate(${ x }px, ${ point.y }px) translateY(-50%)`;
 
 		}
 
@@ -106,8 +111,8 @@ export class HelpLabels {
 			if ( ! other.live ) continue;
 
 			const point = project(
-				( object.x + other.x ) / 2 - GAME_WIDTH / 2,
-				GAME_HEIGHT / 2 - ( object.y + other.y ) / 2,
+				toWorldX( ( object.x + other.x ) / 2 ),
+				toWorldY( ( object.y + other.y ) / 2 ),
 				0
 			);
 
@@ -117,8 +122,7 @@ export class HelpLabels {
 			const label = this.labelAt( used ++ );
 			setBitmapText( label, HELP_TEXT.spring );
 			label.style.display = '';
-			label.style.left = `${ point.x + 4 }px`;
-			label.style.top = `${ point.y }px`;
+			label.style.transform = `translate(${ point.x + 4 }px, ${ point.y }px) translateY(-50%)`;
 
 		}
 
