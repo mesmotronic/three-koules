@@ -362,9 +362,17 @@ body {
 	inset: 0;
 	display: grid;
 	place-content: center;
+	justify-items: center;
+	/* Between the ring and a message, on the one screen that shows both. */
+	gap: 24px;
 	background: #04050a;
 	z-index: 10;
 	transition: opacity 0.5s ease;
+	/* None of this is meant to be picked up by a cursor: a stray drag or a
+	   double tap would otherwise highlight the text and leave a band behind
+	   it, which on a screen this dark is the only thing you would see. */
+	user-select: none;
+	-webkit-user-select: none;
 }
 
 #boot.hidden {
@@ -372,19 +380,75 @@ body {
 	pointer-events: none;
 }
 
+/*
+ * The wait is six koules in a ring, which is `draw_koules()`'s sixty degree
+ * step and the same ring that closes on the ship in the intro — shrunk down,
+ * and lit round instead of drawn in. Nothing spins: the ring holds still and
+ * the brightness travels, so each koule keeps its highlight up and to the
+ * left where `draw_ball_bitmap` put it.
+ */
+#boot-spinner {
+	position: relative;
+	width: 44px;
+	height: 44px;
+}
+
+#boot-spinner i {
+	position: absolute;
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	background: radial-gradient(circle at 34% 30%,
+		#ffd8d8 0%, #f24a4a 42%, #a11414 76%, #3a0606 100%);
+	opacity: 0.22;
+	animation: boot-koule 1.2s ease-in-out infinite;
+}
+
+/* Six positions round a 17px circle, an even sixty degrees apart. */
+#boot-spinner i:nth-child(1) { left: 17px;    top: 0; }
+#boot-spinner i:nth-child(2) { left: 31.72px; top: 8.5px; }
+#boot-spinner i:nth-child(3) { left: 31.72px; top: 25.5px; }
+#boot-spinner i:nth-child(4) { left: 17px;    top: 34px; }
+#boot-spinner i:nth-child(5) { left: 2.28px;  top: 25.5px; }
+#boot-spinner i:nth-child(6) { left: 2.28px;  top: 8.5px; }
+
+#boot-spinner i:nth-child(2) { animation-delay: 0.2s; }
+#boot-spinner i:nth-child(3) { animation-delay: 0.4s; }
+#boot-spinner i:nth-child(4) { animation-delay: 0.6s; }
+#boot-spinner i:nth-child(5) { animation-delay: 0.8s; }
+#boot-spinner i:nth-child(6) { animation-delay: 1s; }
+
+@keyframes boot-koule {
+	0%, 62%, 100% { opacity: 0.22; }
+	28% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+	#boot-spinner i {
+		animation: none;
+		opacity: 0.75;
+	}
+
+}
+
 #boot p {
-	margin: 0;
 	max-width: 44ch;
 	text-align: center;
 	font-size: 12px;
 	line-height: 1.7;
-	letter-spacing: 0.18em;
-	color: var(--koules-select);
+	letter-spacing: 0.08em;
+	color: #ff8080;
 }
 
-#boot.error p {
-	color: #ff8080;
-	letter-spacing: 0.08em;
+/* Only a failure has anything to say; the wait is the ring on its own. */
+#boot p:empty {
+	display: none;
+}
+
+/* A failure is not a wait, so the ring stops rather than lying about it. */
+#boot.error #boot-spinner {
+	display: none;
 }
 
 /* -------------------------------------------------------- sound switch */

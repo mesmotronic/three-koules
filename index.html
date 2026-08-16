@@ -77,7 +77,10 @@
 
 	<!-- Shown while WebGPU starts, and reused to report that it cannot. -->
 	<div id="boot">
-		<p id="boot-message">STARTING</p>
+		<div id="boot-spinner" role="progressbar" aria-label="Starting">
+			<i></i><i></i><i></i><i></i><i></i><i></i>
+		</div>
+		<p id="boot-message"></p>
 	</div>
 
 	<script type="module" src="./src/main.ts"></script>
