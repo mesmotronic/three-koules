@@ -34,13 +34,17 @@ export class ViewSelector {
 
 			const label = document.createElement( 'span' );
 			label.className = 'bmp shadowed';
-			setBitmapText( label, VIEW_LABELS[ mode ] );
 
 			button.append( label );
 			button.addEventListener( 'click', () => this.choose( mode ) );
 
 			this.root.append( button );
 			this.buttons.push( button );
+
+			// Painted only once the label is in the document: the bitmap takes
+			// its colour from the computed style, and a detached element has
+			// none to give.
+			setBitmapText( label, VIEW_LABELS[ mode ] );
 
 		}
 

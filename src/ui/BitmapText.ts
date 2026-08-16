@@ -27,6 +27,9 @@ let _scale = 2;
 /** Extra letter spacing, in font pixels. The original packed glyphs solid. */
 const TRACKING = 0;
 
+/** Used when an element is painted before it joins the document. */
+const DEFAULT_COLOR = '#ffffff';
+
 /**
  * Renders a run of text to a data URL.
  *
@@ -99,7 +102,9 @@ function render( text: string, color: string, scale: number ): string {
  */
 export function setBitmapText( element: HTMLElement, text: string, color?: string ): void {
 
-	const resolved = color ?? getComputedStyle( element ).color;
+	// A detached element has no computed style to read, and the colour is baked
+	// into the bitmap, so painting one early gives black on black.
+	const resolved = color ?? ( element.isConnected ? getComputedStyle( element ).color : DEFAULT_COLOR );
 
 	if ( element.dataset.text === text && element.dataset.color === resolved && element.dataset.scale === String( _scale ) ) {
 

@@ -156,6 +156,9 @@ body {
 #views .view {
 	appearance: none;
 	background: transparent;
+	/* Without this the button inherits the UA's `buttontext`, and the labels
+	   are baked into their bitmaps black on black. */
+	color: var(--koules-text);
 	border: 1px solid transparent;
 	padding: calc(1px * var(--bmp-scale)) calc(2px * var(--bmp-scale));
 	cursor: pointer;
