@@ -34,7 +34,13 @@ export class CameraDirector {
 	mode: ViewMode = ViewMode.TOP;
 
 	/** How the sector is framed, refreshed by the app each frame. */
-	private readonly framing: Framing = { distance: 1000, lift: 0, drift: true, elapsed: 0 };
+	private readonly framing: Framing = {
+		distance: 1000,
+		lift: 0,
+		statusFraction: 0,
+		drift: true,
+		elapsed: 0
+	};
 
 	/** Number of viewports currently tiled across the canvas. */
 	private viewports = 1;
@@ -86,6 +92,12 @@ export class CameraDirector {
 	set lift( value: number ) {
 
 		this.framing.lift = value;
+
+	}
+
+	set statusFraction( value: number ) {
+
+		this.framing.statusFraction = value;
 
 	}
 

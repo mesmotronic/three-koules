@@ -6,14 +6,23 @@ import { Camera, MathUtils, PerspectiveCamera, Quaternion, Vector3, Vector4 } fr
 import { GAME_HEIGHT, RAD, ViewMode, toWorldX, toWorldY } from '../core/Constants.js';
 import type { GameObject } from '../game/GameObject.js';
 
-/** Seconds a change of view takes to fly. */
-const TRANSITION = 1.15;
+/**
+ * Seconds a change of view takes to fly.
+ *
+ * Unhurried on purpose. The sector fills the screen and the whole frame
+ * swings during a change, so a quick flight reads as the room moving rather
+ * than the camera, which is the short road to motion sickness.
+ */
+const TRANSITION = 2.3;
 
 /** How quickly a following camera catches up, per second. */
 const FOLLOW_RATE = 6;
 
 /** How quickly the followed heading catches up. Slower, or it whips. */
 const HEADING_RATE = 2.6;
+
+/** Breathing room left around the angled view's exact fit. */
+const FIT_MARGIN = 1.05;
 
 /**
  * Scratch used to turn a look-at into a quaternion.
@@ -51,10 +60,19 @@ export const POSES: Readonly<Record<ViewMode, Pose>> = {
 
 /** How the sector is framed, shared by every view. */
 export interface Framing {
-	/** Distance at which the whole sector fits. */
+	/** Distance at which the whole sector fits the inset square. */
 	distance: number;
 	/** World units the sector sits above the viewport centre. */
 	lift: number;
+	/**
+	 * The status line's share of the viewport height.
+	 *
+	 * The angled view frames itself against the whole canvas rather than the
+	 * inset square — nothing is laid out over it — so the one thing it has to
+	 * be told is how much of the bottom the scores take, to sit above them
+	 * rather than under them.
+	 */
+	statusFraction: number;
 	/** Idle drift, disabled during a crawl and by the menu setting. */
 	drift: boolean;
 	/** Seconds elapsed, for that drift. */
@@ -225,12 +243,26 @@ export class CameraView {
 				// Tipped back about the x axis so the near edge of the sector
 				// splays toward the viewer and the far edge narrows away.
 				const pitch = RAD( 34 );
-				const range = distance * 1.06 * breath;
 
-				_position.set( swayX, - lift - Math.sin( pitch ) * range + swayY, Math.cos( pitch ) * range );
-				// Aiming a little above centre keeps the trapezoid balanced,
-				// since its near edge takes up more of the frame.
-				_target.set( 0, - lift + GAME_HEIGHT * 0.06, 0 );
+				const tanFov = Math.tan( RAD( POSES[ ViewMode.ANGLED ].fov ) / 2 );
+
+				// Framed against the screen rather than against the square the
+				// overhead view draws in. Seen along a tilt the near edge is
+				// both nearer the lens and lower in the frame, so it is the
+				// edge that runs out of room first; putting it exactly on the
+				// bottom of the usable height and solving for the distance is
+				// what fills the screen without pushing the wall the player is
+				// about to be shoved into off the bottom of it.
+				const usable = tanFov * ( 1 - framing.statusFraction );
+				const range = ( GAME_HEIGHT / 2 ) *
+					( Math.cos( pitch ) / usable + Math.sin( pitch ) ) * FIT_MARGIN * breath;
+
+				// Then lift the framing by half the status line, so the sector
+				// centres in the space above the scores and not in the canvas.
+				const rise = framing.statusFraction * range * tanFov / Math.cos( pitch );
+
+				_position.set( swayX, - rise - Math.sin( pitch ) * range + swayY, Math.cos( pitch ) * range );
+				_target.set( 0, - rise, 0 );
 				_dummy.up.set( 0, 1, 0 );
 				break;
 

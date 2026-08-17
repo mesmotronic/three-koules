@@ -806,14 +806,22 @@ export class Koules {
 	/**
 	 * Hands the camera to the director.
 	 *
-	 * The overhead view is forced while a crawl or the menu is up: the scroller
-	 * reproduces the original's own projection and any camera move would fight
-	 * it, and the menu's overlay is laid out against the projected square.
+	 * The overhead view is forced for a crawl and for the menu, and for nothing
+	 * else. A crawl is laid out against this camera — `setViewport` sizes the
+	 * scroller from the same distance and field of view — so a moved camera
+	 * would fight the original's own projection; and the menu's overlay is
+	 * placed against the projected square.
+	 *
+	 * A banner is not either of those. Forcing it overhead too meant the camera
+	 * flew home and back for every sector title and every death, so a player who
+	 * had chosen a view spent the pauses being taken out of it and returned.
+	 * Now the choice is flown to as soon as the sector is announced, and dying
+	 * leaves the camera where it was.
 	 */
 	private updateCamera( delta: number ): void {
 
 		const { game } = this;
-		const overhead = this.phase !== 'live' || game.gamemode !== GameMode.GAME;
+		const overhead = this.phase === 'crawl' || game.gamemode !== GameMode.GAME;
 
 		this.director.driftEnabled = this.settings.cameraMotion && this.phase !== 'crawl';
 
@@ -901,6 +909,11 @@ export class Koules {
 
 		this.director.distance = this.baseDistance;
 		this.director.lift = this.lift;
+
+		// The angled view frames itself against the canvas, and only needs to
+		// know how much of the bottom the scores are taking.
+		this.director.statusFraction = Math.min( 0.4, hud / height );
+
 		this.director.setCanvasAspect( width / height );
 
 		// The crawl covers the whole window rather than the inset sector.

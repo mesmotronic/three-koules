@@ -246,6 +246,10 @@ body {
 	outline: none;
 }
 
+#menu .mesmotronic-logo {
+	height: min(2dvh, 40px);
+}
+
 /* --------------------------------------------------------------- menu rows */
 
 #menu-rows {
