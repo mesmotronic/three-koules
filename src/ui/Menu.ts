@@ -21,6 +21,15 @@ interface MenuItem {
 		set( value: number ): void;
 		min(): number;
 		max(): number;
+		/**
+		 * Ends roll over into each other rather than stopping.
+		 *
+		 * For a short list of named choices, where the ends are arbitrary and
+		 * stopping at one just feels stuck. The counters do not: running the
+		 * player count from five back round to one would be a surprise, and
+		 * the level spinner is long enough to need its held-key ramp.
+		 */
+		wrap?: boolean;
 	};
 }
 
@@ -191,7 +200,8 @@ export class Menu {
 					get: () => settings.view,
 					set: v => { settings.view = v as ViewMode; },
 					min: () => ViewMode.TOP,
-					max: () => ViewMode.COCKPIT
+					max: () => ViewMode.COCKPIT,
+					wrap: true
 				}
 			},
 			{
@@ -602,6 +612,11 @@ export class Menu {
 
 		}
 
+		// A wrapping row has no end to hold the key down towards, so repeating
+		// on it would just spin the four names round several times a second.
+		// It takes one press per step; the counters keep their ramp.
+		if ( spinner.wrap === true ) return;
+
 		this.repeatTimer -= delta;
 
 		if ( this.repeatTimer <= 0 ) {
@@ -615,7 +630,13 @@ export class Menu {
 
 	private step( spinner: NonNullable<MenuItem[ 'spinner' ]>, direction: number ): void {
 
-		const value = Math.min( spinner.max(), Math.max( spinner.min(), spinner.get() + direction ) );
+		const min = spinner.min();
+		const max = spinner.max();
+		const next = spinner.get() + direction;
+
+		const value = spinner.wrap === true
+			? ( next < min ? max : ( next > max ? min : next ) )
+			: Math.min( max, Math.max( min, next ) );
 
 		if ( value === spinner.get() ) return;
 
