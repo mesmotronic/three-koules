@@ -911,8 +911,12 @@ export class Koules {
 		this.director.lift = this.lift;
 
 		// The angled view frames itself against the canvas, and only needs to
-		// know how much of the bottom the scores are taking.
-		this.director.statusFraction = Math.min( 0.4, hud / height );
+		// know where the scores start. Measured to the top of the status line
+		// rather than up from the bottom of the window: the line sits under the
+		// square, not at the foot of the canvas, so on a tall window there is a
+		// strip below it that belongs to nothing.
+		this.director.usableHeight =
+			Math.min( 1, ( this.rectTop + size + HUD_GAP ) / height );
 
 		this.director.setCanvasAspect( width / height );
 

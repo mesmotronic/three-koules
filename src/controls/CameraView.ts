@@ -22,7 +22,7 @@ const FOLLOW_RATE = 6;
 const HEADING_RATE = 2.6;
 
 /** Breathing room left around the angled view's exact fit. */
-const FIT_MARGIN = 1.05;
+const FIT_MARGIN = 1.04;
 
 /**
  * Scratch used to turn a look-at into a quaternion.
@@ -65,14 +65,17 @@ export interface Framing {
 	/** World units the sector sits above the viewport centre. */
 	lift: number;
 	/**
-	 * The status line's share of the viewport height.
+	 * How far down the canvas the status line starts, as a fraction of its
+	 * height.
 	 *
-	 * The angled view frames itself against the whole canvas rather than the
+	 * The angled view frames itself against the canvas rather than against the
 	 * inset square — nothing is laid out over it — so the one thing it has to
-	 * be told is how much of the bottom the scores take, to sit above them
-	 * rather than under them.
+	 * be told is where the scores begin, to fill the room above them without
+	 * running underneath them. Note the scores are not at the bottom of the
+	 * canvas: they sit under the square, which on a tall window leaves a strip
+	 * below them that no view may use.
 	 */
-	statusFraction: number;
+	usableHeight: number;
 	/** Idle drift, disabled during a crawl and by the menu setting. */
 	drift: boolean;
 	/** Seconds elapsed, for that drift. */
@@ -245,23 +248,45 @@ export class CameraView {
 				const pitch = RAD( 34 );
 
 				const tanFov = Math.tan( RAD( POSES[ ViewMode.ANGLED ].fov ) / 2 );
+				const half = GAME_HEIGHT / 2;
+				const cos = Math.cos( pitch );
+				const sin = Math.sin( pitch );
 
-				// Framed against the screen rather than against the square the
-				// overhead view draws in. Seen along a tilt the near edge is
-				// both nearer the lens and lower in the frame, so it is the
-				// edge that runs out of room first; putting it exactly on the
-				// bottom of the usable height and solving for the distance is
-				// what fills the screen without pushing the wall the player is
-				// about to be shoved into off the bottom of it.
-				const usable = tanFov * ( 1 - framing.statusFraction );
-				const range = ( GAME_HEIGHT / 2 ) *
-					( Math.cos( pitch ) / usable + Math.sin( pitch ) ) * FIT_MARGIN * breath;
+				// Half the sector's depth along the tilt, and how far either
+				// edge reaches up the frame at unit distance. Perspective makes
+				// the near edge the bigger of the two, which is what leaves the
+				// trapezoid bottom heavy.
+				const skew = half * sin;
+				const reach = half * cos / tanFov;
 
-				// Then lift the framing by half the status line, so the sector
-				// centres in the space above the scores and not in the canvas.
-				const rise = framing.statusFraction * range * tanFov / Math.cos( pitch );
+				// Room above the status line, as a share of the half height.
+				const room = framing.usableHeight;
 
-				_position.set( swayX, - rise - Math.sin( pitch ) * range + swayY, Math.cos( pitch ) * range );
+				// The distance at which the two edges together exactly span
+				// that room: `reach / ( r - skew ) + reach / ( r + skew )` set
+				// equal to `2 room`, solved for r. Fitting the whole trapezoid,
+				// rather than pinning its near edge to the bottom and letting
+				// the far one fall where it may, is what closes the band of
+				// dead space that used to sit above it.
+				const vertical =
+					( reach + Math.sqrt( reach * reach + 4 * room * room * skew * skew ) ) / ( 2 * room );
+
+				// On a narrow window the near corners run out of width long
+				// before either edge runs out of height, so that limit is taken
+				// too and the further of the two distances wins.
+				const horizontal = skew + half / ( tanFov * Math.max( 0.1, this.camera.aspect ) );
+
+				const range = Math.max( vertical, horizontal ) * FIT_MARGIN * breath;
+
+				const near = reach / ( range - skew );
+				const far = reach / ( range + skew );
+
+				// Lift it into that room: part of the shift clears the status
+				// line, the rest balances a shape whose near edge takes up more
+				// of the frame than its far one.
+				const rise = ( ( 1 - room ) + ( near - far ) / 2 ) * range * tanFov / cos;
+
+				_position.set( swayX, - rise - sin * range + swayY, cos * range );
 				_target.set( 0, - rise, 0 );
 				_dummy.up.set( 0, 1, 0 );
 				break;

@@ -253,7 +253,7 @@ body {
  */
 #menu .mesmotronic-logo {
 	display: block;
-	height: clamp(18px, 4dvh, 38px);
+	height: clamp(20px, min(4dvh, 4dvw), 38px);
 	width: auto;
 }
 

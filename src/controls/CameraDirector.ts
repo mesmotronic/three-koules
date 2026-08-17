@@ -37,7 +37,7 @@ export class CameraDirector {
 	private readonly framing: Framing = {
 		distance: 1000,
 		lift: 0,
-		statusFraction: 0,
+		usableHeight: 1,
 		drift: true,
 		elapsed: 0
 	};
@@ -95,9 +95,9 @@ export class CameraDirector {
 
 	}
 
-	set statusFraction( value: number ) {
+	set usableHeight( value: number ) {
 
-		this.framing.statusFraction = value;
+		this.framing.usableHeight = value;
 
 	}
 
