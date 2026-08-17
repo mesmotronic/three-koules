@@ -135,7 +135,9 @@ export const enum ViewMode {
 }
 
 export const VIEW_LABELS: Readonly<Record<ViewMode, string>> = {
-	[ ViewMode.TOP ]: 'TOP',
+	// Named for what it is rather than where it is: this is the one the game
+	// was played in for thirty years, and the others are the novelty.
+	[ ViewMode.TOP ]: 'CLASSIC',
 	[ ViewMode.ANGLED ]: 'ANGLED',
 	[ ViewMode.CHASE ]: 'CHASE',
 	[ ViewMode.COCKPIT ]: 'PILOT'

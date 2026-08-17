@@ -208,7 +208,6 @@ export class Koules {
 		this.game.onWallImpact = () => this.playfield.pulse();
 
 		this.applySettings();
-		this.viewSelector.choose( this.settings.view );
 
 		window.addEventListener( 'resize', this.onResize );
 
@@ -285,6 +284,8 @@ export class Koules {
 		game.sound = game.gamemode === GameMode.GAME && settings.sound;
 		this.bloom?.setEnabled( settings.bloom );
 
+		// The menu offers the point of view too, so the buttons follow it.
+		this.viewSelector.mode = settings.view;
 
 	}
 

@@ -60,6 +60,22 @@ export class ViewSelector {
 
 	}
 
+	/**
+	 * Shows a view chosen somewhere else, without reporting it back.
+	 *
+	 * The menu offers the same four, so the buttons have to be able to follow
+	 * a choice made there. {@link choose} is for a press on these buttons, and
+	 * says so; this only catches them up.
+	 */
+	set mode( value: ViewMode ) {
+
+		if ( value === this.current ) return;
+
+		this.current = value;
+		this.refresh();
+
+	}
+
 	set visible( value: boolean ) {
 
 		this.root.classList.toggle( 'visible', value );

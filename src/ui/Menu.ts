@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: © 2026 Mesmotronic Limited
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-import { DIFFICULTIES, GamePlanMode, MAX_ROCKETS } from '../core/Constants.js';
+import { DIFFICULTIES, GamePlanMode, MAX_ROCKETS, VIEW_LABELS, ViewMode } from '../core/Constants.js';
 import { highScores } from '../core/HighScores.js';
 import { ball, paletteHex } from '../core/Palette.js';
 import type { SettingsData } from '../core/Settings.js';
@@ -180,6 +180,18 @@ export class Menu {
 					set: v => { settings.nrockets = v; game.nrockets = v; },
 					min: () => 1,
 					max: () => MAX_ROCKETS
+				}
+			},
+			{
+				// The point of view a game starts in. It can still be changed
+				// with the buttons or the number keys once play is under way;
+				// this is only what it opens on.
+				label: () => `${ VIEW_LABELS[ settings.view ] } VIEW`,
+				spinner: {
+					get: () => settings.view,
+					set: v => { settings.view = v as ViewMode; },
+					min: () => ViewMode.TOP,
+					max: () => ViewMode.COCKPIT
 				}
 			},
 			{
