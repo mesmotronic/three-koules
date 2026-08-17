@@ -18,6 +18,7 @@ import {
 	SRGBColorSpace,
 	ShadowNodeMaterial
 } from 'three/webgpu';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 import { GAME_HEIGHT, GAME_WIDTH } from '../core/Constants.js';
 import { PALETTE, back, paletteColor } from '../core/Palette.js';
@@ -93,8 +94,8 @@ function createBackdropTexture(): CanvasTexture {
  */
 export class Playfield extends Group {
 
-	/** Rim lights that pulse when something is destroyed against the wall. */
-	private readonly frame: Mesh[] = [];
+	/** The boundary's material, tinted when something dies against the wall. */
+	private frameMaterial: MeshBasicNodeMaterial | null = null;
 	// `drawbackground()` ruled its divider under the playfield in `back(16)`;
 	// the sector frame is drawn from the same ramp, a little brighter so the
 	// boundary reads at a glance.
@@ -140,27 +141,31 @@ export class Playfield extends Group {
 
 		const thickness = 3;
 		const depth = 10;
-		const material = new MeshBasicNodeMaterial( { color: this.frameColor } );
-		setBloom( material, 0.8 );
+		this.frameMaterial = new MeshBasicNodeMaterial( { color: this.frameColor } );
+		setBloom( this.frameMaterial, 0.8 );
 
-		const horizontal = new BoxGeometry( GAME_WIDTH + thickness * 2, thickness, depth );
-		const vertical = new BoxGeometry( thickness, GAME_HEIGHT, depth );
+		// The bars sit just outside the sector rather than straddling its edge.
+		// Centred on the boundary they overlapped down the middle and the long
+		// horizontals still stood a half thickness proud of the verticals, so
+		// every corner had a little tab hanging off it. Offset by half their
+		// thickness they butt together exactly: the horizontals own the corner
+		// squares and the verticals run between them.
+		const offsetX = GAME_WIDTH / 2 + thickness / 2;
+		const offsetY = GAME_HEIGHT / 2 + thickness / 2;
 
-		const edges: [number, number, BoxGeometry][] = [
-			[ 0, GAME_HEIGHT / 2, horizontal ],
-			[ 0, - GAME_HEIGHT / 2, horizontal ],
-			[ - GAME_WIDTH / 2, 0, vertical ],
-			[ GAME_WIDTH / 2, 0, vertical ]
+		const bars = [
+			new BoxGeometry( GAME_WIDTH + thickness * 2, thickness, depth ).translate( 0, offsetY, 0 ),
+			new BoxGeometry( GAME_WIDTH + thickness * 2, thickness, depth ).translate( 0, - offsetY, 0 ),
+			new BoxGeometry( thickness, GAME_HEIGHT, depth ).translate( - offsetX, 0, 0 ),
+			new BoxGeometry( thickness, GAME_HEIGHT, depth ).translate( offsetX, 0, 0 )
 		];
 
-		for ( const [ x, y, geometry ] of edges ) {
+		// One mesh rather than four: the frame never moves independently, and a
+		// single draw is one less thing for each split-screen viewport to do.
+		const merged = mergeGeometries( bars );
+		for ( const bar of bars ) bar.dispose();
 
-			const edge = new Mesh( geometry, material );
-			edge.position.set( x, y, 0 );
-			this.add( edge );
-			this.frame.push( edge );
-
-		}
+		this.add( new Mesh( merged, this.frameMaterial ) );
 
 		// --- lighting -------------------------------------------------------
 
@@ -244,9 +249,7 @@ export class Playfield extends Group {
 
 		this.flash = Math.max( 0, this.flash - delta * 4 );
 
-		// All four edges share one material, so tinting it lights the frame.
-		const material = this.frame[ 0 ].material as MeshBasicNodeMaterial;
-		material.color.copy( this.frameColor ).lerp( this.flashColor, this.flash );
+		this.frameMaterial?.color.copy( this.frameColor ).lerp( this.flashColor, this.flash );
 
 	}
 
