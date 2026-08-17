@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<!--
+	SPDX-FileCopyrightText: © 2026 Mesmotronic Limited
+	SPDX-License-Identifier: GPL-2.0-or-later
+-->
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+	<title>Koules 3D | Made by Mesmotronic</title>
+	<meta name="description" content="Jan Hubicka's 1995 arcade classic discovers a new dimension: the original physics meets four view options and split screen multiplayer!">
+	<link rel="canonical" href="https://labs.mesmotronic.com/three-koules/">
+	<link rel="icon" href="./favicon.ico" sizes="32x32">
+
+	<!-- OpenGraph -->
+	<meta property="og:type" content="website">
+	<meta property="og:site_name" content="Koules 3D: Made by Mesmotronic">
+	<meta property="og:title" content="Koules 3D">
+	<meta property="og:description" content="Jan Hubicka's 1995 arcade classic discovers a new dimension: the original physics meets four view options and split screen multiplayer!">
+	<meta property="og:url" content="https://labs.mesmotronic.com/three-koules/">
+	<meta property="og:image" content="https://labs.mesmotronic.com/three-koules/images/og-image.jpg">
+	<meta property="og:image:type" content="image/jpeg">
+	<meta property="og:image:width" content="1200">
+	<meta property="og:image:height" content="630">
+	<meta property="og:image:alt" content="Defending against the evil Koules in third person perspective">
+
+	<!-- X (formerly Twitter) -->
+	<meta name="twitter:card" content="summary_large_image">
+	<meta name="twitter:site" content="@mesmotronic">
+	<meta name="twitter:creator" content="@mesmotronic">
+	<meta name="twitter:title" content="Koules 3D">
+	<meta name="twitter:description" content="Jan Hubicka's 1995 arcade classic discovers a new dimension: the original physics meets four view options and split screen multiplayer!">
+	<meta name="twitter:image" content="https://labs.mesmotronic.com/three-koules/images/og-image.jpg">
+	<meta name="twitter:image:alt" content="Defending against the evil Koules in third person perspective">
+  <script type="module" crossorigin src="./assets/index-DnxCpqik.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-BFulhj5k.css">
+</head>
+
+<body>
+
+	<div id="container"></div>
+
+	<!-- Everything below is a transparent overlay aligned to the inset playfield. -->
+	<div id="overlay">
+
+		<div id="playfield">
+
+			<div id="labels"></div>
+
+			<div id="banner"><span class="bmp shadowed"></span></div>
+
+			<div id="menu">
+				<!-- Title lines are painted with the game's 8x8 font at runtime. -->
+				<header>
+					<h1 class="bmp shadowed" data-bmp="THE GAME"></h1>
+					<h2 class="bmp shadowed" data-bmp="K O U L E S  3 D"></h2>
+					<p class="bmp shadowed" data-bmp="BY"></p>
+					<p class="port">
+						<a href="https://mesmotronic.com" target="_blank" rel="noopener" class="bmp shadowed" data-bmp="MESMOTRONIC"></a>
+					</p>
+					<div class="gap"></div>
+
+				</header>
+				<div id="menu-rows">
+					<div id="menu-selector"></div>
+					<ul id="menu-items"></ul>
+				</div>
+				<footer>
+					<p class="bmp shadowed" data-bmp="PRESS P FOR PAUSE / H FOR HELP"></p>
+					<p class="port">
+						<a href="https://www.ucw.cz/~hubicka/koules/English/" class="bmp shadowed" data-bmp="Inspired by KOULES by JAHUSOFT" target="_blank" rel="noopener"></a>
+					</p>
+				</footer>
+			</div>
+
+			<div id="hud">
+				<div id="hud-level"></div>
+				<div id="hud-players"></div>
+			</div>
+
+			<!-- Point-of-view switch, opposite the scores. -->
+			<div id="views"></div>
+
+		</div>
+
+	</div>
+
+	<!--
+		Sound switch. Sits outside the overlay because it is the one control
+		that has to be reachable at any moment, including during the crawl.
+	-->
+	<button id="sound" type="button" class="muted waiting" aria-pressed="false" aria-label="Sound off"></button>
+
+	<!-- Virtual stick: the anchor is wherever the player first touched. -->
+	<div id="stick" aria-hidden="true">
+		<div id="stick-base"></div>
+		<div id="stick-knob"></div>
+	</div>
+
+	<!-- Shown while WebGPU starts, and reused to report that it cannot. -->
+	<div id="boot">
+		<div id="boot-spinner" role="progressbar" aria-label="Starting">
+			<i></i><i></i><i></i><i></i><i></i><i></i>
+		</div>
+		<p id="boot-message">
+			<img src="./images/mesmotronic.svg" alt="Made by Mesmotronic" class="mesmotronic-logo">
+		</p>
+	</div>
+
+
+</body>
+
+</html>
