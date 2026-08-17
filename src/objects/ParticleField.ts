@@ -95,7 +95,7 @@ export class ParticleField extends Sprite {
 			depthWrite: false
 		} );
 
-		setBloom( material, 1.0 );
+		setBloom( material, 1.0, shapeCircle() );
 
 		super( material );
 

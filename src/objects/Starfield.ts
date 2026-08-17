@@ -68,7 +68,7 @@ export class Starfield extends Sprite {
 			depthWrite: false
 		} );
 
-		setBloom( material, 0.35 );
+		setBloom( material, 0.35, shapeCircle() );
 
 		super( material );
 

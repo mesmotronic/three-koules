@@ -14,6 +14,8 @@ import {
 	type Texture
 } from 'three/webgpu';
 
+import { texture as textureNode } from 'three/tsl';
+
 import { EYE_RADIUS, EYE_RADIUS1, Letter, ObjectType, RAD } from '../core/Constants.js';
 import type { GameObject } from '../game/GameObject.js';
 import { type Appearance, bodyMaterial, glowMaterial, setBloom } from '../materials/BodyMaterials.js';
@@ -231,7 +233,6 @@ export class ObjectView extends Group {
 				depthWrite: false,
 				sizeAttenuation: true
 			} );
-			setBloom( material, 0.3 );
 
 			this.decal = new Sprite( material );
 			this.add( this.decal );
@@ -242,6 +243,10 @@ export class ObjectView extends Group {
 			( this.decal.material as SpriteNodeMaterial ).needsUpdate = true;
 
 		}
+
+		// Re-tagged rather than tagged once, because the glow is masked by this
+		// letter's own alpha and the letter is swapped in place.
+		setBloom( this.decal.material as SpriteNodeMaterial, 0.3, textureNode( texture ).a );
 
 	}
 

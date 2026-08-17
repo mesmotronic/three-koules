@@ -9,7 +9,8 @@ import {
 	AdditiveBlending,
 	type Material
 } from 'three/webgpu';
-import { mrt, uniform } from 'three/tsl';
+import { float, mrt, uniform } from 'three/tsl';
+import type { Node } from 'three/webgpu';
 
 import { ROCKET_COLOR } from '../core/Constants.js';
 import { paletteColor } from '../core/Palette.js';
@@ -109,10 +110,23 @@ export function appearanceColor( appearance: Appearance, target = new Color() ):
  * node cannot be drawn straight to the canvas, because the output struct it
  * compiles has no colour member for a target that has only one attachment.
  * See {@link setBloomTagging}.
+ *
+ * @param mask - Required where the shape comes from alpha rather than from
+ * geometry. The glow is written for every fragment the primitive covers, and
+ * knows nothing of the material having made most of them invisible: a letter
+ * on a transparent quad blooms as the whole quad, and arrives wearing a bright
+ * square. Handing the same mask that carves out the shape fixes the glow to it.
  */
-export function setBloom( material: Material, intensity: number ): void {
+export function setBloom( material: Material, intensity: number, mask?: Node ): void {
 
-	_tagged.set( material, mrt( { bloomIntensity: uniform( intensity ) } ) );
+	// `mul` is published as a long list of per-type overloads, none of which
+	// admits a bare `Node` — though every scalar node is one. Narrowed here so
+	// callers can pass what TSL actually hands them.
+	const glow = mask === undefined
+		? uniform( intensity )
+		: float( intensity ).mul( mask as ReturnType<typeof float> );
+
+	_tagged.set( material, mrt( { bloomIntensity: glow } ) );
 	if ( _tagging ) ( material as MeshStandardNodeMaterial ).mrtNode = _tagged.get( material )!;
 
 }
