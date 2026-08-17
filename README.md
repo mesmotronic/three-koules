@@ -1,6 +1,6 @@
 # Koules 3D
 
-<img src="./docs/koules-3d.png" alt="Koules 3D" width="768" />
+<img src="./public/images/screenshot.png" alt="Koules 3D" width="768" />
 
 Ported to [Three.js](https://threejs.org/) by [Mesmotronic](https://mesmotronic.com).
 

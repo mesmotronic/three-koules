@@ -18,8 +18,15 @@ import { setBloom } from '../materials/BodyMaterials.js';
  * `drawstarbackground()` — the greyscale specks behind the crawl.
  *
  * The original scattered 700 single pixels in palette entries 192..223 and
- * left them there. Here they get depth as well, so the camera's drift gives a
- * little parallax against the sector.
+ * left them there. Behind a camera that never moved, a flat sheet of them
+ * behind the sector was the same thing; it stops being the same thing the
+ * moment the camera tips. From the angled view the sheet slides away below
+ * the horizon, and from inside a ship there is nothing overhead but black.
+ *
+ * So they are scattered over a sphere around the sector instead, far enough
+ * out to read as sky from anywhere inside it. The radius is jittered rather
+ * than exact: a true shell turns with the camera and looks painted on, while
+ * a little spread in depth gives back the parallax the flat field had.
  */
 export class Starfield extends Sprite {
 
@@ -27,10 +34,11 @@ export class Starfield extends Sprite {
 
 	/**
 	 * @param count - Number of stars.
-	 * @param spread - Half-width of the volume they fill, in playfield units.
-	 * @param depth - How far behind the playfield the volume sits.
+	 * @param radius - How far out the shell sits, in playfield units. Kept
+	 * well inside the cameras' far plane, with room for the furthest of them
+	 * to be looking at the far side of it.
 	 */
-	constructor( count = 1400, spread = 1800, depth = 900 ) {
+	constructor( count = 1400, radius = 2400 ) {
 
 		const positions = new InstancedBufferAttribute( new Float32Array( count * 3 ), 3 );
 		const colors = new InstancedBufferAttribute( new Float32Array( count * 3 ), 3 );
@@ -40,9 +48,18 @@ export class Starfield extends Sprite {
 
 			const i3 = i * 3;
 
-			positions.array[ i3 + 0 ] = randMod( spread * 2 ) - spread;
-			positions.array[ i3 + 1 ] = randMod( spread * 2 ) - spread;
-			positions.array[ i3 + 2 ] = - depth - randMod( depth );
+			// An even scatter over a sphere. Height is picked uniformly rather
+			// than as an angle, which is what stops them bunching at the poles
+			// — and the poles here are straight up and straight down through
+			// the sector, where bunching would be plain to see.
+			const height = randMod( 20001 ) / 10000 - 1;
+			const angle = randMod( 62832 ) / 10000;
+			const ring = Math.sqrt( Math.max( 0, 1 - height * height ) );
+			const distance = radius * ( 0.75 + randMod( 50 ) / 100 );
+
+			positions.array[ i3 + 0 ] = Math.cos( angle ) * ring * distance;
+			positions.array[ i3 + 1 ] = Math.sin( angle ) * ring * distance;
+			positions.array[ i3 + 2 ] = height * distance;
 
 			// Palette entries 192..223, the greyscale ramp.
 			const entry = ( 192 + randMod( 32 ) ) * 3;

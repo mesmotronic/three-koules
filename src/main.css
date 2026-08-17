@@ -222,7 +222,8 @@ body {
 	justify-content: center;
 }
 
-#menu header {
+#menu header,
+#menu footer {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
@@ -244,17 +245,6 @@ body {
 #menu .port a:focus-visible {
 	border-bottom-color: var(--koules-select);
 	outline: none;
-}
-
-/*
- * The wordmark is four and a half times as wide as it is tall, so it is sized
- * by height and left to work out its own width. Setting both at once is what
- * put it out of shape: whichever rule won each axis, the aspect went with it.
- */
-#menu .mesmotronic-logo {
-	display: block;
-	height: clamp(20px, min(4dvh, 4dvw), 38px);
-	width: auto;
 }
 
 /* --------------------------------------------------------------- menu rows */
@@ -309,15 +299,8 @@ body {
 	opacity: 1;
 }
 
-#menu footer {
-	width: 100%;
-	display: flex;
-	justify-content: center;
-	align-items: center;
-}
-
 #menu footer a {
-	opacity: 0.75;
+	opacity: 0.5;
 	transition: opacity 0.2s ease;
 }
 
@@ -368,7 +351,7 @@ body {
 	place-content: center;
 	justify-items: center;
 	/* Between the ring and a message, on the one screen that shows both. */
-	gap: 24px;
+	gap: 42px;
 	background: #04050a;
 	z-index: 10;
 	transition: opacity 0.5s ease;
