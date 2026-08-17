@@ -1,6 +1,6 @@
 # Koules 3D
 
-<img src="./public/images/screenshot.png" alt="Koules 3D" width="768" />
+<img src="./public/images/og-image.webp" alt="Koules 3D" width="600" />
 
 Ported to [Three.js](https://threejs.org/) by [Mesmotronic](https://mesmotronic.com).
 
@@ -8,13 +8,13 @@ Ported to [Three.js](https://threejs.org/) by [Mesmotronic](https://mesmotronic.
 
 Bounce the koules out of your sector before they bounce you out of yours.
 
-Based on Jan Hubicka's 1995 action game for Linux, via
-[Lubomir Rintel's SDL port](https://github.com/lkundrak/koules), the Three.js
-version faithfully reporoduces the simulation while adding a whole new third
-dimension never seen in Koules before: traditional 2D, perspective, first and
-third person view, plus split-screen multiplayer action and touch controls!
+Based on [Jan Hubicka's 1995 action game for Linux](https://www.ucw.cz/~hubicka/koules/English/),
+via [Lubomir Rintel's SDL port](https://github.com/lkundrak/koules), the
+Three.js version faithfully reporoduces the simulation while adding a whole new
+third dimension never seen in Koules before: traditional 2D, perspective, first
+and third person view, plus split-screen multiplayer action and touch controls!
 
-Requires a WebGPU (Chrome, Edge or Safari).
+Requires WebGPU (Chrome, Edge or Safari).
 
 ## Controls
 
