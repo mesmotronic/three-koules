@@ -1,6 +1,6 @@
 # Koules 3D
 
-<img src="./public/images/og-image.webp" alt="Koules 3D" width="600" />
+<img src="./public/images/og-image.jpg" alt="Koules 3D" width="600" />
 
 Ported to [Three.js](https://threejs.org/) by [Mesmotronic](https://mesmotronic.com).
 
