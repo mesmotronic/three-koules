@@ -11,7 +11,14 @@ export default defineConfig( {
 	},
 	build: {
 		target: 'esnext',
-		chunkSizeWarningLimit: 1500
+		chunkSizeWarningLimit: 1500,
+		rollupOptions: {
+			output: {
+				entryFileNames: 'assets/[name].js',
+				chunkFileNames: 'assets/[name].js',
+				assetFileNames: 'assets/[name][extname]'
+			}
+		}
 	}
 
 } );
